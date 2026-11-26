@@ -58,12 +58,14 @@ export async function render(main) {
 
   // admin alerts
   if (isAdmin()) {
-    const [members] = await Promise.all([db.listMembers(gid)]);
+    const [members, suggested] = await Promise.all([db.listMembers(gid), db.listPlaceSuggestions(gid).catch(() => [])]);
     const pm = members.filter(m => m.status === 'pending').length;
     const pb = businesses.filter(b => b.status === 'pending').length;
-    if (pm || pb) blocks.push(h('a', { href: pm ? '#/admin/members' : '#/admin/businesses', class: 'card alert' },
+    const pp = suggested.length;
+    if (pm || pb || pp) blocks.push(h('a', { href: pm ? '#/admin/members' : pb ? '#/admin/businesses' : '#/admin/places', class: 'card alert' },
       h('span', { class: 'alert-icon' }, '🛡️'), h('div', null, h('strong', null, t('home.adminAlert')),
-        h('p', null, [pm ? t('home.pendingMembers', { n: fmtNum(pm) }) : null, pb ? t('home.pendingBusinesses', { n: fmtNum(pb) }) : null].filter(Boolean).join(sep())))));
+        h('p', null, [pm ? t('home.pendingMembers', { n: fmtNum(pm) }) : null, pb ? t('home.pendingBusinesses', { n: fmtNum(pb) }) : null,
+          pp ? t('home.pendingPlaces', { n: fmtNum(pp) }) : null].filter(Boolean).join(sep())))));
   }
   // business demand teaser
   const vb = verifiedBusinesses();
@@ -104,6 +106,8 @@ export async function render(main) {
   if (placeCats.length) blocks.push(h('section', null, h('h2', { class: 'section-title' }, t('home.guide')),
     h('div', { class: 'chips scroll' }, placeCats.map(c => h('a', { href: `#/directory?cat=${c.id}`, class: 'chip-btn' }, c.icon, ' ', catName(c))),
       h('a', { href: '#/map', class: 'chip-btn' }, '🗺️ ', t('home.openMap')))));
+  // everyone who can write can add (mayor) or suggest (resident) a missing place
+  if (canWrite()) blocks.push(h('a', { href: '#/place/new', class: 'btn block' }, '＋ ', t(isAdmin() ? 'place.addBtn' : 'place.suggestBtn')));
 
   clear(main).append(hero, h('div', { class: 'page' }, blocks));
 

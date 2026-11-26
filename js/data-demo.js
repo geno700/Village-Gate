@@ -348,7 +348,34 @@ export const api = {
       db.categories.push(x); log(g, 'insert', 'categories', x.id, null, x); return x.id;
     });
   },
-  async listPlaces(g) { if (!isMember(g)) return []; return ok(db.places.filter(p => p.group_id === g)); },
+  async listPlaces(g) { if (!isMember(g)) return []; return ok(db.places.filter(p => p.group_id === g && (p.status || 'approved') === 'approved')); },
+  /** Suggested places waiting for the mayor: all of them for admins, only my own for residents. */
+  async listPlaceSuggestions(g) {
+    if (!isMember(g)) return [];
+    return ok(db.places.filter(p => p.group_id === g && p.status === 'pending' && (isAdm(g) || p.created_by === me()))
+      .sort((a, b) => b.created_at.localeCompare(a.created_at)));
+  },
+  async suggestPlace(g, p) {
+    return tx(() => {
+      if (!canW(g)) E('forbidden');
+      const admin = isAdm(g);
+      if (!admin && db.places.filter(x => x.group_id === g && x.created_by === me() && x.status === 'pending').length >= 10) E('too_many');
+      const cat = db.categories.find(c => c.id === p.category_id && c.group_id === g && c.kind === 'place'); if (!cat) E('invalid_input');
+      checkLatLng(p.lat, p.lng);
+      const x = { id: uuid(), group_id: g, category_id: cat.id, name: checkName(p.name), phone: null, lat: p.lat, lng: p.lng,
+        note: (p.note || '').trim().slice(0, 300), osm_ref: null, status: admin ? 'approved' : 'pending', created_at: now(), created_by: me() };
+      db.places.push(x); log(g, 'insert', 'places', x.id, null, x); return x.id;
+    });
+  },
+  async reviewPlace(id, approve) {
+    return tx(() => {
+      const x = db.places.find(y => y.id === id); if (!x) E('not_found');
+      if (!isAdm(x.group_id)) E('forbidden');
+      if (x.status !== 'pending') E('invalid_state');
+      if (approve) { const b = clone(x); x.status = 'approved'; log(x.group_id, 'update', 'places', x.id, b, x); }
+      else { db.places = db.places.filter(y => y.id !== id); log(x.group_id, 'delete', 'places', id, x, null); }
+    });
+  },
   async savePlace(g, p) {
     return tx(() => {
       if (!isAdm(g)) E('forbidden');

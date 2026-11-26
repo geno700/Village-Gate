@@ -128,7 +128,13 @@ export const api = {
     if (c.id) { const { key, kind, ...editable } = row; un(await sb.from('categories').update(editable).eq('id', c.id).eq('group_id', g)); return c.id; }
     return un(await sb.from('categories').insert({ ...row, group_id: g }).select('id').single()).id;
   },
-  async listPlaces(g) { return un(await sb.from('places').select('*').eq('group_id', g)); },
+  async listPlaces(g) { return un(await sb.from('places').select('*').eq('group_id', g).eq('status', 'approved')); },
+  /** Suggested places waiting for the mayor: all of them for admins, only my own for residents. */
+  async listPlaceSuggestions(g) { return un(await sb.from('places').select('*').eq('group_id', g).eq('status', 'pending').order('created_at', { ascending: false })); },
+  async suggestPlace(g, p) {
+    return rpc('suggest_place', { p_group: g, p_category: p.category_id, p_name: (p.name || '').trim(), p_lat: p.lat, p_lng: p.lng, p_note: (p.note || '').trim() });
+  },
+  async reviewPlace(id, approve) { return rpc('review_place', { p_place: id, p_approve: !!approve }); },
   async savePlace(g, p) {
     const row = { category_id: p.category_id, name: p.name?.trim(), phone: p.phone || null, lat: p.lat, lng: p.lng, note: (p.note || '').trim() };
     if (p.id) { un(await sb.from('places').update(row).eq('id', p.id).eq('group_id', g)); return p.id; }

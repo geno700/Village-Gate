@@ -71,5 +71,6 @@ export async function locationPicker(el, { value, center, zoom = 16, emoji = 'ðŸ
     gpsBtn.disabled = false;
     if (here) put(here, true); else status.textContent = t('loc.gpsFailed');
   };
-  return { get: () => pos, set: ll => put(ll, true), map };
+  const setEmoji = e => { emoji = e; if (marker) marker.setIcon(pinIcon(L, e, 'home')); };
+  return { get: () => pos, set: ll => put(ll, true), setEmoji, map };
 }

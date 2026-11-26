@@ -158,8 +158,9 @@ async function businesses(el, gid, ctx) {
 
 /* ---------------------------------------------------------------- places */
 async function places(el, gid) {
-  const rows = await db.listPlaces(gid);
+  const [rows, suggested, mem] = await Promise.all([db.listPlaces(gid), db.listPlaceSuggestions(gid), db.listMembers(gid)]);
   const placeCats = state.categories.filter(c => c.kind === 'place');
+  const sugBox = h('div', { class: 'stack' });
   let st = { q: '', cat: 'all' };
   const list = h('div', { class: 'list' });
   const bar = toolbar({ placeholder: t('common.search'), onChange: s => { st = s; paint(); }, selects: [
@@ -167,7 +168,34 @@ async function places(el, gid) {
   el.append(h('div', { class: 'section-head' }, h('p', { class: 'muted' }, t('admin.placesHelp')),
     h('button', { class: 'btn ghost small', onclick: () => downloadCSV(`places-${stamp()}.csv`, rows, [{ label: t('csv.name'), key: 'name' },
       { label: t('csv.category'), get: p => catName(catById(p.category_id)) }, { label: t('csv.phone'), key: 'phone' }, { label: t('csv.note'), key: 'note' }, { label: 'lat', key: 'lat' }, { label: 'lng', key: 'lng' }]) }, '⬇ CSV')),
-  h('button', { class: 'btn primary block', onclick: () => edit(null) }, '＋ ', t('admin.addPlace')), bar, list);
+  h('a', { class: 'btn primary block', href: '#/place/new' }, '＋ ', t('admin.addPlace')), sugBox, bar, list);
+  // places suggested by residents: approve (it joins the guide) or turn down (it is removed)
+  function paintSuggestions() {
+    clear(sugBox);
+    if (!suggested.length) return;
+    sugBox.append(h('h2', { class: 'section-title' }, '💡 ', t('admin.suggestions', { n: fmtNum(suggested.length) })),
+      h('div', { class: 'list' }, suggested.map(p => {
+        const review = async ok => {
+          if (!ok && !await confirmDialog(t('admin.rejectPlaceQ', { name: p.name }), { ok: t('admin.rejectPlace'), danger: true })) return;
+          try {
+            await db.reviewPlace(p.id, ok);
+            suggested.splice(suggested.indexOf(p), 1);
+            if (ok) { rows.push({ ...p, status: 'approved' }); toast(t('admin.placeApproved')); } else toast(t('common.deleted'));
+            paintSuggestions(); paint();
+          } catch (e) { errToast(e); }
+        };
+        return h('div', { class: 'list-item col' },
+          h('div', { class: 'row' }, h('span', { class: 'li-icon place' }, catById(p.category_id)?.icon || '📍'),
+            h('div', { class: 'li-main' }, h('strong', null, p.name),
+              h('small', null, [catName(catById(p.category_id)), t('admin.suggestedBy', { name: memberName(mem, p.created_by) }), timeAgo(p.created_at)].filter(x => x !== p.name).join(sep()))),
+            statusChip('pending')),
+          p.note ? h('p', { class: 'small' }, p.note) : null,
+          h('div', { class: 'row wrap' },
+            h('button', { class: 'btn small ghost', onclick: () => showOnMap(p.name, p, catById(p.category_id)?.icon, 'place') }, '🗺️'),
+            h('button', { class: 'btn small primary', onclick: () => review(true) }, '✔ ', t('admin.approvePlace')),
+            h('button', { class: 'btn small ghost danger', onclick: () => review(false) }, t('admin.rejectPlace'))));
+      })));
+  }
   function paint() {
     let r = rows.filter(p => matches(st.q, p.name, p.note));
     if (st.cat !== 'all') r = r.filter(p => p.category_id === st.cat);
@@ -204,6 +232,7 @@ async function places(el, gid) {
     picker = await locationPicker(mapBox, { value: p ? { lat: p.lat, lng: p.lng } : null, center: center(), emoji: catById(p?.category_id)?.icon || '📍' });
     m.el.addEventListener('close', () => picker.map.remove());
   }
+  paintSuggestions();
   paint();
 }
 

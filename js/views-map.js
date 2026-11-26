@@ -29,7 +29,9 @@ export async function mapView(main) {
   const locBtn = h('button', { type: 'button', class: 'map-fab', 'aria-label': t('loc.useGps'), onclick: async () => {
     const here = await locate(); if (here) { map.setView([here.lat, here.lng], 17); L.circleMarker([here.lat, here.lng], { radius: 8, color: '#1e88e5', fillOpacity: 0.8 }).addTo(map); }
   } }, '📍');
-  clear(main).append(h('div', { class: 'map-page' }, mapEl, filterBar, locBtn));
+  // add a missing place (mayor) or suggest one (resident)
+  const addBtn = canWrite() ? h('a', { href: '#/place/new', class: 'map-add btn primary' }, '＋ ', t(isAdmin() ? 'place.addBtn' : 'place.suggestBtn')) : null;
+  clear(main).append(h('div', { class: 'map-page' }, mapEl, filterBar, locBtn, addBtn));
   const { L, map } = await makeMap(mapEl, { center: center(), zoom: state.group.zoom || 16 });
   const layer = L.layerGroup().addTo(map);
   const markers = {};

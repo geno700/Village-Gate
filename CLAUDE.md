@@ -16,7 +16,7 @@ demand heatmap, accept requests, and deliver. Group = village. The session langu
   supabase/schema.sql, README.md, LICENSE (MIT). Extra helpers: js/state.js (shared state, go(), query()),
   js/shared.js (constants shared by both backends, keep in sync with schema.sql), js/map.js (Leaflet),
   js/scene3d.js (three.js village), js/osm.js (OpenStreetMap search, map download and house placement),
-  js/views-setup.js (new-village wizard), js/models3d.js (landmark 3D models), data/demo-village.json (bundled
+  js/views-setup.js (new-village wizard), js/views-places.js (add or suggest a place), js/models3d.js (landmark 3D models), data/demo-village.json (bundled
   real map for the demo), data/maps/ (ready-made village maps + index.json).
   Icons in icons/. When adding a file, add it to SHELL in sw.js.
 - Supabase project "github apps" (https://gzvknfvqyqfynainxgur.supabase.co). config.js holds only
@@ -60,6 +60,9 @@ demand heatmap, accept requests, and deliver. Group = village. The session langu
 - Setup and "rebuild map" prefill every place the free data has (landmarks, shops, offices, with phones) in a
   tick list: inside the village circle ticked, farther ones unticked, low-confidence ones marked "unconfirmed".
   Map rows are [type, name, lat, lng, ref, unsure, phone]. Anything without its own type is place type `shop`.
+- Adding places: `#/place/new` (js/views-places.js) picks the type from big icons, then a pin. The mayor's place goes
+  straight in (`savePlace`); a resident's is a suggestion (`suggest_place`, status 'pending', max 10 waiting each),
+  seen only by admins and its author until the mayor approves or turns it down (`review_place`, turning down deletes).
 - Google Maps is never used as a data source: its Places API needs a paid key and its terms forbid copying
   places into another database. Missing places are added by the mayor.
 - Home shows a big interactive 3D village (turn, pinch/buttons to zoom, full screen, tap a marker for a card).

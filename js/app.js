@@ -13,6 +13,7 @@ import * as admin from './views-admin.js';
 import * as owner from './views-owner.js';
 import * as settings from './views-settings.js';
 import * as setupView from './views-setup.js';
+import * as placesView from './views-places.js';
 
 const GROUP_KEY = 'vg-group';
 
@@ -33,6 +34,7 @@ const ROUTES = [
   ['map', maps.mapView, 'member', 'map'],
   ['directory', maps.directory, 'member', 'directory'],
   ['business/:id', maps.businessDetail, 'member', 'directory'],
+  ['place/new', placesView.addPlace, 'member', 'map'],
   ['request/new', reqs.newRequest, 'member', 'requests'],
   ['requests', reqs.myRequests, 'member', 'requests'],
   ['my-business', biz.myBusiness, 'member', 'more'],

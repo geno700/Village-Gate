@@ -305,6 +305,7 @@ body.scene-full { overflow: hidden; }
 .map-filter { position: absolute; top: 10px; inset-inline: 56px 10px; z-index: 500; }
 .map-filter .chip-btn { box-shadow: var(--shadow); }
 .map-fab { position: absolute; z-index: 500; bottom: 24px; inset-inline-end: 14px; width: 52px; height: 52px; border-radius: 50%; border: 0; background: var(--surface); box-shadow: var(--shadow); font-size: 1.4rem; cursor: pointer; }
+.map-add { position: absolute; z-index: 500; bottom: 28px; inset-inline-start: 14px; box-shadow: 0 2px 10px rgba(0, 0, 0, .25); }
 .picker-bar { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
 .pin { background: none; border: 0; }
 .pin span {
@@ -404,3 +405,9 @@ body.scene-full { overflow: hidden; }
 .pick-row strong, .pick-row small { display: block; }
 .pick-row small { color: var(--muted); }
 .pick-row .badge { flex: none; }
+
+/* ---------- add / suggest a place ---------- */
+.place-types { grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); }
+.place-types .tile { font: inherit; color: inherit; cursor: pointer; min-height: 86px; }
+.tile.on { border: 3px solid var(--brand); background: var(--brand-soft); }
+.fab-row { display: flex; justify-content: center; margin: 10px 0; }

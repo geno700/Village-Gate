@@ -103,6 +103,9 @@ create index if not exists places_group on village_gate.places(group_id);
 -- landmarks imported from OpenStreetMap remember their id (n123, w456, r789) so they are never added twice
 alter table village_gate.places add column if not exists osm_ref text check (osm_ref ~ '^([nwr][0-9]{1,12}|o[0-9a-f]{8,32})$');
 create unique index if not exists places_osm_ref on village_gate.places(group_id, osm_ref) where osm_ref is not null;
+-- residents suggest places; they stay 'pending' (seen only by admins and the person who suggested them) until approved
+alter table village_gate.places add column if not exists status text not null default 'approved' check (status in ('pending', 'approved'));
+create index if not exists places_pending on village_gate.places(group_id) where status = 'pending';
 
 -- the 3D village map: roads, canals, fields and buildings read once from OpenStreetMap by an admin
 -- (format in js/osm.js). Residents read it from here, so they never call the map services themselves.
@@ -337,7 +340,8 @@ drop policy if exists village_maps_select on village_gate.village_maps;
 create policy village_maps_select on village_gate.village_maps for select to authenticated using (village_gate.is_member(group_id));
 
 drop policy if exists places_select on village_gate.places;
-create policy places_select on village_gate.places for select to authenticated using (village_gate.is_member(group_id));
+create policy places_select on village_gate.places for select to authenticated using (
+  village_gate.is_member(group_id) and (status = 'approved' or created_by = auth.uid() or village_gate.is_admin(group_id)));
 drop policy if exists places_insert on village_gate.places;
 create policy places_insert on village_gate.places for insert to authenticated with check (village_gate.is_admin(group_id));
 drop policy if exists places_update on village_gate.places;
@@ -633,6 +637,34 @@ begin
   perform set_config('village_gate.skip_log_insert', 'off', true);
   if n > 0 then perform log_activity(p_group, 'import_places', 'places', p_group, null, jsonb_build_object('added', n)); end if;
   return n;
+end $$;
+
+-- a resident suggests a place for the village guide; the mayor approves it (an admin's own suggestion is approved at once)
+create or replace function village_gate.suggest_place(p_group uuid, p_category uuid, p_name text, p_lat double precision, p_lng double precision, p_note text)
+returns uuid language plpgsql security definer set search_path = village_gate, pg_temp as $$
+declare pid uuid;
+begin
+  if not can_write(p_group) then raise exception 'forbidden'; end if;
+  if not is_admin(p_group) and (select count(*) from places where group_id = p_group and created_by = auth.uid() and status = 'pending') >= 10 then
+    raise exception 'too_many';
+  end if;
+  insert into places(group_id, category_id, name, lat, lng, note, status)
+  values (p_group, p_category, btrim(p_name), p_lat, p_lng, coalesce(btrim(p_note), ''), case when is_admin(p_group) then 'approved' else 'pending' end)
+  returning id into pid;
+  return pid;
+end $$;
+
+-- the mayor approves a suggested place, or turns it down (which removes it)
+create or replace function village_gate.review_place(p_place uuid, p_approve boolean)
+returns void language plpgsql security definer set search_path = village_gate, pg_temp as $$
+declare r places;
+begin
+  select * into r from places where id = p_place;
+  if not found then raise exception 'not_found'; end if;
+  if not is_admin(r.group_id) then raise exception 'forbidden'; end if;
+  if r.status <> 'pending' then raise exception 'invalid_state'; end if;
+  if p_approve then update places set status = 'approved' where id = r.id;
+  else delete from places where id = r.id; end if;
 end $$;
 
 create or replace function village_gate.regenerate_join_code(p_group uuid)
@@ -1038,6 +1070,7 @@ grant execute on function
   village_gate.join_group(text, text, text, double precision, double precision, text),
   village_gate.update_group(uuid, text, double precision, double precision, int, int),
   village_gate.save_village_map(uuid, jsonb), village_gate.import_places(uuid, jsonb),
+  village_gate.suggest_place(uuid, uuid, text, double precision, double precision, text), village_gate.review_place(uuid, boolean),
   village_gate.regenerate_join_code(uuid), village_gate.delete_group(uuid), village_gate.transfer_ownership(uuid, uuid),
   village_gate.leave_group(uuid),
   village_gate.update_my_membership(uuid, text, text, double precision, double precision, text),

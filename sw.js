@@ -2,7 +2,7 @@
 // cache-first for pinned CDN libraries and map tiles, and NEVER caches Supabase or the map
 // search/data services (Nominatim, Overpass): those requests pass straight through.
 // Bump VERSION on every release so users see "New version, reload".
-const VERSION = 'vg-v1.2.0';
+const VERSION = 'vg-v1.2.1';
 const SHELL = [
   './', './index.html', './config.js', './manifest.webmanifest', './css/style.css',
   './js/app.js', './js/state.js', './js/shared.js', './js/i18n.js', './js/ui.js', './js/map.js', './js/scene3d.js', './js/osm.js', './js/models3d.js',

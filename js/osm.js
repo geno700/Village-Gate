@@ -25,15 +25,35 @@ export const GROUND_FACTOR = 1.6; // roads and fields are read this far beyond t
 const placeName = (r, lang) => r.namedetails?.[`name:${lang}`] || r.name || r.display_name?.split(',')[0] || '';
 /** Search villages and towns in Egypt by name. Call on submit only (Nominatim allows 1 request a second). */
 export async function searchVillage(q, lang = 'ar') {
+  const ready = await readyMatches(q, lang);
   const u = `${NOMINATIM}/search?format=jsonv2&countrycodes=eg&limit=8&namedetails=1&accept-language=${lang}&q=${encodeURIComponent(q.trim())}`;
-  const res = await fetch(u, { headers: { Accept: 'application/json' } });
-  if (!res.ok) throw new Error('map_busy');
-  const rows = await res.json();
-  return rows.map(r => ({
+  let rows;
+  try {
+    const res = await fetch(u, { headers: { Accept: 'application/json' } });
+    if (!res.ok) throw new Error('map_busy');
+    rows = await res.json();
+  } catch (e) { if (ready.length) return ready; throw e; }
+  return ready.concat(rows.map(r => ({
     name: placeName(r, lang),
-    area: r.display_name.split(',').slice(1, 3).map(s => s.trim()).filter(Boolean).join('، '),
+    area: r.display_name.split(',').slice(1, 3).map(s => s.trim()).filter(Boolean).join(lang === 'ar' ? '، ' : ', '),
     lat: +r.lat, lng: +r.lon, type: r.addresstype || r.type,
-  }));
+  })));
+}
+
+/* Ready-made villages (data/maps/index.json) come first in the search: OpenStreetMap often has no name for them. */
+let readyList = null;
+const readyIndex = () => readyList ??= fetch('./data/maps/index.json').then(r => r.ok ? r.json() : []).catch(() => []);
+const normWord = s => String(s || '').toLowerCase().replace(/[ً-ْـ]/g, '')
+  .replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').replace(/^(al-|el-|ال)/, '');
+const words = s => String(s || '').split(/[\s,،\-]+/).map(normWord).filter(w => w.length >= 2);
+async function readyMatches(q, lang) {
+  const qw = words(q), skip = new Set(['قريه', 'village', 'عزبه', 'kafr', 'كفر']);
+  const key = qw.filter(w => !skip.has(w));
+  if (!key.length) return [];
+  return (await readyIndex()).filter(m => {
+    const names = words(`${m.name_ar} ${m.name_en}`);
+    return key.some(w => names.some(n => n === w || (w.length >= 3 && n.startsWith(w))));
+  }).map(m => ({ name: lang === 'ar' ? m.name_ar : m.name_en, area: lang === 'ar' ? m.area : (m.area_en || m.area), lat: m.lat, lng: m.lng, type: 'village', ready: true }));
 }
 /** Name of the village around a point (to prefill the village name after tapping the map). */
 export async function nameAt(lat, lng, lang = 'ar') {
@@ -99,7 +119,7 @@ async function overpass(query, onStep) {
  */
 async function bundledMap(lat, lng) {
   try {
-    const list = await fetch('./data/maps/index.json').then(r => r.ok ? r.json() : []);
+    const list = await readyIndex();
     const kx = 111320 * Math.cos(lat * Math.PI / 180);
     const hit = list.find(m => Math.hypot((m.lng - lng) * kx, (m.lat - lat) * 110540) < (m.match_m || 700));
     return hit ? await fetch('./data/maps/' + hit.file).then(r => r.ok ? r.json() : null) : null;

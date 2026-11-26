@@ -2,12 +2,12 @@
 import { db } from './data.js';
 import { state, catById, center, locate, isAdmin, canWrite, query } from './state.js';
 import { t, catName } from './i18n.js';
-import { h, clear, toolbar, empty, matches, distanceKm, fmtDistance, fmtNum, telLink, waLink, chip, statusChip, downloadCSV, stamp, sep } from './ui.js';
+import { h, clear, toolbar, empty, matches, distanceKm, fmtDistance, fmtNum, telLink, waLink, chip, statusChip, downloadCSV, stamp, sep, joinList } from './ui.js';
 import { makeMap, pinIcon } from './map.js';
 import { SEARCH_WORDS } from './shared.js';
 
 const homeOf = () => state.membership?.home_lat != null ? { lat: state.membership.home_lat, lng: state.membership.home_lng } : null;
-const catsLabel = ids => ids.map(id => catName(catById(id))).filter(Boolean).join('، ');
+const catsLabel = ids => joinList(ids.map(id => catName(catById(id))).filter(Boolean));
 
 function contactButtons(phone, whatsapp, name) {
   return h('div', { class: 'row wrap' },

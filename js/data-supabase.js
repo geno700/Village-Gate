@@ -9,6 +9,9 @@ const sb = createClient(SUPABASE_URL, SUPABASE_KEY, {
 });
 const redirect = () => location.origin + location.pathname;
 
+/** Open requests past their 3 days show as expired (the database marks them when a seller next looks). */
+const expired = rows => { const now = Date.now(); for (const r of rows) if (r.status === 'open' && Date.parse(r.expires_at) < now) r.status = 'expired'; return rows; };
+
 /** Unwrap a supabase response; database `raise exception 'code'` arrives as error.message = 'code'. */
 function un({ data, error }) {
   if (error) {
@@ -147,10 +150,10 @@ export const api = {
   async setBusinessStatus(id, status) { return rpc('set_business_status', { p_business: id, p_status: status }); },
 
   /* ----- requests ----- */
-  async myRequests(g) { return un(await sb.from('requests').select('*').eq('group_id', g).eq('created_by', uid).order('created_at', { ascending: false }).limit(300)); },
+  async myRequests(g) { return expired(un(await sb.from('requests').select('*').eq('group_id', g).eq('created_by', uid).order('created_at', { ascending: false }).limit(300))); },
   async adminRequests(g) {
     const since = new Date(Date.now() - 30 * 86400000).toISOString();
-    return un(await sb.from('requests').select('*').eq('group_id', g).gte('created_at', since).order('created_at', { ascending: false }).limit(2000));
+    return expired(un(await sb.from('requests').select('*').eq('group_id', g).gte('created_at', since).order('created_at', { ascending: false }).limit(2000)));
   },
   async createRequest(g, r) {
     return un(await sb.from('requests').insert({ group_id: g, category_id: r.category_id, details: (r.details || '').trim(), quantity: r.quantity,

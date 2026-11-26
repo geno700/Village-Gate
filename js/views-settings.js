@@ -2,10 +2,10 @@
 import { db, isDemo } from './data.js';
 import { state, isAdmin, canWrite, verifiedBusinesses, center, go } from './state.js';
 import { t, setLang, getLang } from './i18n.js';
-import { h, clear, field, toast, errToast, busy, confirmDialog, download, pickFile, stamp, statusChip } from './ui.js';
+import { h, clear, field, toast, errToast, busy, confirmDialog, download, pickFile, stamp, statusChip, joinList, sep } from './ui.js';
 import { personFields } from './views-auth.js';
 
-const VERSION = '1.0.0';
+const VERSION = '1.2.1';
 
 export async function render(main, _p, ctx) {
   const approved = state.membership?.status === 'approved';
@@ -14,7 +14,7 @@ export async function render(main, _p, ctx) {
 
   const shortcuts = h('div', { class: 'list' },
     approved ? link('#/directory', '📒', t('nav.directory'), t('settings.directorySub')) : null,
-    approved && canWrite() ? link('#/my-business', '🏪', t('biz.mineTitle'), state.myBusinesses.length ? state.myBusinesses.map(b => b.name).join('، ') : t('settings.bizSub')) : null,
+    approved && canWrite() ? link('#/my-business', '🏪', t('biz.mineTitle'), state.myBusinesses.length ? joinList(state.myBusinesses.map(b => b.name)) : t('settings.bizSub')) : null,
     approved && verifiedBusinesses().length ? link('#/demand', '🔥', t('nav.demand'), t('settings.demandSub')) : null,
     approved && isAdmin() ? link('#/admin', '🛡️', t('admin.title'), t('settings.adminSub')) : null,
     state.platformAdmin ? link('#/owner', '🌐', t('owner.title'), t('settings.ownerSub')) : null);
@@ -70,7 +70,7 @@ export async function render(main, _p, ctx) {
       if (!await confirmDialog(t('settings.logoutQ'), { ok: t('settings.logout') })) return;
       await db.signOut(); localStorage.removeItem('vg-group'); go('#/welcome');
     } }, '⎋ ', t('settings.logout')),
-    h('p', { class: 'center muted small' }, `${t('app.name')} · v${VERSION} · `, 'MIT')));
+    h('p', { class: 'center muted small' }, [t('app.name'), 'v' + VERSION, 'MIT'].join(sep()))));
 
   if (state.group) {
     const m = state.membership;

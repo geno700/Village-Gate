@@ -11,7 +11,7 @@ export async function render(main) {
   const stat = (label, n) => h('div', { class: 'stat' }, h('strong', null, fmtNum(n)), h('span', null, label));
   const max = Math.max(1, ...stats.weeks.map(w => w.activity));
   const chart = h('div', { class: 'bars', role: 'img', 'aria-label': t('owner.weekly') }, stats.weeks.map(w =>
-    h('div', { class: 'bar', title: `${w.week}: ${w.activity} · +${w.new_users} ${t('owner.users')}` },
+    h('div', { class: 'bar', title: `${w.week}: ${w.activity}${sep()}+${w.new_users} ${t('owner.users')}` },
       h('span', { class: 'bar-fill', style: `height:${Math.round(w.activity / max * 100)}%` }), h('small', null, w.week.slice(5)))));
   const table = h('div', { class: 'list' });
   const actList = h('div', { class: 'list' });

@@ -4,7 +4,7 @@
 import { db } from './data.js';
 import { state, go } from './state.js';
 import { t, getLang } from './i18n.js';
-import { h, clear, field, toast, errToast, busy, fmtNum, spinner } from './ui.js';
+import { h, clear, field, toast, errToast, busy, fmtNum, spinner, sep } from './ui.js';
 import { locationPicker } from './map.js';
 import { mountScene } from './scene3d.js';
 import { searchVillage, nameAt, fetchVillageMap, mapStats, synthHouses } from './osm.js';
@@ -67,9 +67,10 @@ export async function setup(main, _p, ctx) {
           if (!rows.length) results.append(h('p', { class: 'note warn' }, t('setup.noResults')));
           for (const r of rows) results.append(h('button', { type: 'button', class: 'list-item', onclick: () => {
             if (!picker) return;
-            if (!S.nameTyped) { S.name = r.name; vname.value = r.name; }
+            if (!S.nameTyped) { S.name = r.name; vname.value = r.name; keepName = true; }
             picker.set({ lat: r.lat, lng: r.lng }); clear(results);
-          } }, h('span', { class: 'li-icon' }, '📍'), h('div', { class: 'li-main' }, h('strong', null, r.name), h('small', null, r.area))));
+          } }, h('span', { class: 'li-icon' }, r.ready ? '🏡' : '📍'), h('div', { class: 'li-main' }, h('strong', null, r.name),
+            h('small', null, r.ready ? [r.area, t('setup.readyMap')].filter(Boolean).join(sep()) : r.area))));
         } catch (err) { clear(results); errToast(err); } finally { busy(searchBtn, false); }
       } }, q, searchBtn),
       results,
@@ -79,7 +80,7 @@ export async function setup(main, _p, ctx) {
       field(t('start.villageName'), vname),
       buildBtn);
 
-    let circle = null, nameTimer = 0, picker = null;
+    let circle = null, nameTimer = 0, picker = null, keepName = false;
     const L = await import('./map.js').then(m => m.loadLeaflet());
     const fit = () => { if (circle) picker.map.fitBounds(circle.getBounds(), { padding: [12, 12] }); };
     const onCenter = pos => {
@@ -87,8 +88,9 @@ export async function setup(main, _p, ctx) {
       if (!circle) circle = L.circle([pos.lat, pos.lng], { radius: S.radius, color: '#c2502e', weight: 2, fillOpacity: 0.08 }).addTo(picker.map);
       else circle.setLatLng([pos.lat, pos.lng]);
       setTimeout(fit, 0);
-      if (!S.nameTyped) {
-        clearTimeout(nameTimer);
+      clearTimeout(nameTimer);
+      if (keepName) keepName = false; // a search result already named the village
+      else if (!S.nameTyped) {
         nameTimer = setTimeout(async () => { const n = await nameAt(pos.lat, pos.lng, getLang()); if (n && !S.nameTyped) { S.name = n; vname.value = n; } }, 700);
       }
     };

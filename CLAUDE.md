@@ -49,7 +49,7 @@ demand heatmap, accept requests, and deliver. Group = village. The session langu
   as hidden search words in `SERVICES`. Each language reads naturally on its own (no mixed-language labels).
 - Village people may not use technology much: big tiles, few words, one main button per screen, plain language.
 - Payments: cash only, never in-app. EGP prices arrive in phase 2.
-- Requests expire after 3 days. Restore in Supabase mode covers places and categories only.
+- Requests expire after 3 days (the DB marks them in `open_demand`; both backends also show them as expired when read). Restore in Supabase mode covers places and categories only.
 - The 3D map is original art (three.js), not a copy of any TV title sequence. It respects reduced motion.
 - The 3D map is built from the real map: the mayor picks the village on the map in `#/setup`, the browser reads
   OpenStreetMap (Nominatim to search, Overpass for roads, canals, fields, buildings and landmarks) and the result
@@ -60,6 +60,7 @@ demand heatmap, accept requests, and deliver. Group = village. The session langu
 - Ready-made maps in data/maps/ are prepared offline (scratch tools, not in the repo) from OpenStreetMap roads plus
   Overture Maps buildings and places (free open data with Google/Microsoft outlines). Setup uses one when the chosen
   centre is within `match_m` of it. Never pay for map data or use services that need a key.
+  Ready-made villages are listed first in the setup search (OSM often has no name for them).
 - Landmarks with a model in models3d.js (mosque, church, school, playground, health unit…) show as small original
   3D buildings and clear the houses on their spot.
 - Services: 109 categories in 16 sectors plus 21 place types, all in `js/shared.js` and copied into
@@ -75,6 +76,7 @@ demand heatmap, accept requests, and deliver. Group = village. The session langu
 
 ## Conventions learned while building
 - In Arabic, join list items with `sep()` from ui.js (Arabic comma). A middle dot looks like the Arabic zero ٠.
+  Never hard-code '،' or ' · ': use `sep()` between parts of a line and `joinList()` for lists of words.
 - Show numbers with `fmtNum()` (Arabic-Indic digits in Arabic). Inputs accept both, normalized by `normDigits()`.
 - Errors: throw/raise a short code ('forbidden', 'invalid_phone'…); the UI shows t('err.<code>').
 - The demo backend (data-demo.js) must enforce the same rules as schema.sql, so the UI behaves the same.

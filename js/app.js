@@ -2,7 +2,7 @@
 import { db, isDemo } from './data.js';
 import { state, isAdmin, verifiedBusinesses, go, query } from './state.js';
 import { t, setLang, getLang, initLang } from './i18n.js';
-import { h, $, clear, toast, errToast, spinner, modal } from './ui.js';
+import { h, $, clear, toast, errToast, spinner, modal, sep } from './ui.js';
 import * as auth from './views-auth.js';
 import { pendingJoin } from './views-auth.js';
 import * as home from './views-home.js';
@@ -126,7 +126,7 @@ async function demoSwitcher() {
   const list = h('div', { class: 'list' }, users.map(u => h('button', { type: 'button', class: 'list-item col' + (u.id === state.user?.id ? ' selected' : ''), onclick: async () => {
     m.close(); await db.demoSwitch(u.id); localStorage.removeItem(GROUP_KEY); await refresh(); route(true);
     toast(t('demo.nowActingAs', { name: u.full_name }));
-  } }, h('strong', null, t('demo.as.' + u.label)), h('small', null, `${u.full_name} · ${u.email}`))));
+  } }, h('strong', null, t('demo.as.' + u.label)), h('small', null, [u.full_name, u.email].join(sep())))));
   const m = modal(t('demo.switchUser'), h('div', null, h('p', { class: 'muted' }, t('demo.switchHelp')), list));
 }
 

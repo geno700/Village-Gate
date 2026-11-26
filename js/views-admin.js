@@ -48,8 +48,7 @@ async function members(el, gid) {
   let st = { q: '', status: hasPending ? 'pending' : 'approved', sort: 'new' };
   const list = h('div', { class: 'list' });
   const bar = toolbar({ placeholder: t('admin.searchMembers'), onChange: s => { st = s; paint(); }, selects: [
-    { name: 'status', label: t('common.filter'), value: st.status, options: ['pending', 'approved', 'rejected', 'removed', 'all'].map(s => ({ value: s,
-      label: (s === 'all' ? t('req.fAll') : t('status.' + s)) + ` (${fmtNum(s === 'all' ? rows.length : rows.filter(m => m.status === s).length)})` })) },
+    { name: 'status', label: t('common.filter'), value: st.status, options: statusOptions(['pending', 'approved', 'rejected', 'removed', 'all'], rows) },
     { name: 'sort', label: t('common.sort'), options: [{ value: 'new', label: t('common.newest') }, { value: 'name', label: t('dir.sortName') }, { value: 'role', label: t('admin.byRole') }] },
   ] });
   const exportBtn = h('button', { class: 'btn ghost small', onclick: () => downloadCSV(`members-${stamp()}.csv`, rows, [
@@ -60,9 +59,7 @@ async function members(el, gid) {
   const ROLE_ORDER = { owner: 0, admin: 1, member: 2, viewer: 3 };
 
   function paint() {
-    // keep the counts in the status filter current after approve/reject/remove
-    [...bar.querySelector('select').options].forEach(o => { o.textContent = (o.value === 'all' ? t('req.fAll') : t('status.' + o.value)) +
-      ` (${fmtNum(o.value === 'all' ? rows.length : rows.filter(m => m.status === o.value).length)})`; });
+    recount(bar, rows); // keep the counts current after approve/reject/remove
     let r = rows.filter(m => matches(st.q, m.display_name, m.phone, m.home_note, m.email));
     if (st.status !== 'all') r = r.filter(m => m.status === st.status);
     r.sort(st.sort === 'name' ? (a, b) => a.display_name.localeCompare(b.display_name, 'ar') : st.sort === 'role' ? (a, b) => ROLE_ORDER[a.role] - ROLE_ORDER[b.role] : (a, b) => b.created_at.localeCompare(a.created_at));
@@ -106,6 +103,14 @@ async function members(el, gid) {
   paint();
 }
 
+/* Status filter with a count per status; recount() refreshes the numbers after a change. */
+const statusOptions = (keys, rows) => keys.map(s => ({ value: s,
+  label: (s === 'all' ? t('req.fAll') : t('status.' + s)) + ` (${fmtNum(s === 'all' ? rows.length : rows.filter(r => r.status === s).length)})` }));
+const recount = (bar, rows) => {
+  const sel = bar.querySelector('select');
+  if (sel) for (const o of statusOptions([...sel.options].map(o => o.value), rows)) { const opt = [...sel.options].find(x => x.value === o.value); if (opt) opt.textContent = o.label; }
+};
+
 /* ---------------------------------------------------------------- businesses */
 async function businesses(el, gid, ctx) {
   const [rows, mem] = await Promise.all([db.listBusinesses(gid), db.listMembers(gid)]);
@@ -113,14 +118,14 @@ async function businesses(el, gid, ctx) {
   let st = { q: '', status: hasPending ? 'pending' : 'verified' };
   const list = h('div', { class: 'list' });
   const bar = toolbar({ placeholder: t('admin.searchBusinesses'), onChange: s => { st = s; paint(); }, selects: [
-    { name: 'status', label: t('common.filter'), value: st.status, options: ['pending', 'verified', 'suspended', 'rejected', 'all'].map(s => ({ value: s,
-      label: (s === 'all' ? t('req.fAll') : t('status.' + s)) + ` (${fmtNum(s === 'all' ? rows.length : rows.filter(b => b.status === s).length)})` })) },
+    { name: 'status', label: t('common.filter'), value: st.status, options: statusOptions(['pending', 'verified', 'suspended', 'rejected', 'all'], rows) },
   ] });
   const exportBtn = h('button', { class: 'btn ghost small', onclick: () => downloadCSV(`businesses-${stamp()}.csv`, rows, [
     { label: t('csv.name'), key: 'name' }, { label: t('csv.owner'), get: b => memberName(mem, b.owner_user_id) }, { label: t('csv.category'), get: b => b.category_ids.map(id => catName(catById(id))).join(' / ') },
     { label: t('csv.phone'), key: 'phone' }, { label: t('csv.status'), get: b => t('status.' + b.status) }, { label: 'lat', key: 'lat' }, { label: 'lng', key: 'lng' }]) }, '⬇ CSV');
   el.append(h('div', { class: 'section-head' }, h('p', { class: 'muted' }, t('admin.bizHelp')), exportBtn), bar, list);
   function paint() {
+    recount(bar, rows);
     let r = rows.filter(b => matches(st.q, b.name, b.phone, b.description, memberName(mem, b.owner_user_id)));
     if (st.status !== 'all') r = r.filter(b => b.status === st.status);
     r.sort((a, b) => b.created_at.localeCompare(a.created_at));

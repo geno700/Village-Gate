@@ -32,6 +32,8 @@ export function clear(el) { while (el.firstChild) el.firstChild.remove(); return
 
 /** List separator: Arabic comma in Arabic (a middle dot looks like the Arabic zero ٠). */
 export const sep = () => getLang() === 'ar' ? '، ' : ' · ';
+/** Join a list of words in the current language (Arabic comma in Arabic). */
+export const joinList = items => items.join(getLang() === 'ar' ? '، ' : ', ');
 
 /* ---------- digits, phones, numbers ---------- */
 const AR_DIGITS = '٠١٢٣٤٥٦٧٨٩', FA_DIGITS = '۰۱۲۳۴۵۶۷۸۹';

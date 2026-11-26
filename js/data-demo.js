@@ -9,8 +9,8 @@ import { synthHouses } from './osm.js';
 const getJSON = u => fetch(u).then(r => r.ok ? r.json() : null).catch(() => null);
 const DEMO_MAP = await getJSON('./data/maps/al-safa.json') || await getJSON('./data/demo-village.json');
 
-const KEY = 'vg-demo-db-v2';
-const MAPS_KEY = 'vg-demo-maps-v2';
+const KEY = 'vg-demo-db-v3';
+const MAPS_KEY = 'vg-demo-maps-v3';
 const DAY = 86400000;
 const uuid = () => crypto.randomUUID();
 const now = () => new Date().toISOString();
@@ -235,7 +235,7 @@ export const api = {
         if (!c || !/^([nwr][0-9]{1,12}|o[0-9a-f]{8,32})$/.test(p.osm_ref || '') || db.places.some(x => x.group_id === g && x.osm_ref === p.osm_ref)) continue;
         const name = (p.name || '').trim().slice(0, 80);
         if (name.length < 2 || !inEgypt(p.lat, p.lng)) continue;
-        db.places.push({ id: uuid(), group_id: g, category_id: c.id, name, phone: null, lat: p.lat, lng: p.lng, note: '', osm_ref: p.osm_ref, created_at: now(), created_by: me() });
+        db.places.push({ id: uuid(), group_id: g, category_id: c.id, name, phone: /^0[0-9]{8,10}$/.test(p.phone || '') ? p.phone : null, lat: p.lat, lng: p.lng, note: '', osm_ref: p.osm_ref, created_at: now(), created_by: me() });
         added++;
       }
       if (added) log(g, 'import_places', 'places', g, null, { added });
@@ -666,10 +666,12 @@ function seed() {
   // real landmarks from the map first, then everyday ones the map does not have yet
   const PLACE_AR = Object.fromEntries(DEFAULT_CATEGORIES.filter(c => c[1] === 'place').map(c => [c[0], c[5]]));
   const realKeys = new Set();
-  for (const [key, name, lat, lng, ref] of DEMO_MAP?.p || []) {
-    if (!PLACE_AR[key]) continue;
+  const mkx = 111320 * Math.cos((DEMO_MAP?.lat || 0) * Math.PI / 180);
+  for (const [key, name, lat, lng, ref, , phone] of DEMO_MAP?.p || []) {
+    // only places inside the village circle (the map also lists the market town nearby)
+    if (!PLACE_AR[key] || Math.hypot((lng - DEMO_MAP.lng) * mkx, (lat - DEMO_MAP.lat) * 110540) > DEMO_MAP.r * 1.15) continue;
     realKeys.add(key);
-    d.places.push({ id: uuid(), group_id: v.id, category_id: cat(v, key), name: name || PLACE_AR[key], phone: null, lat, lng, note: '', osm_ref: ref,
+    d.places.push({ id: uuid(), group_id: v.id, category_id: cat(v, key), name: name || PLACE_AR[key], phone: phone || null, lat, lng, note: '', osm_ref: ref,
       created_at: v.created_at, created_by: v.created_by });
   }
   const fill = (key, name, dlat, dlng, ph, note) => { if (!realKeys.has(key)) mkPlace(v, key, name, dlat, dlng, ph, note); };

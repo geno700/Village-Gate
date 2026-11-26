@@ -87,6 +87,10 @@ out geom qt;
   nwr["shop"="bakery"]${A(r)};
   nwr["leisure"~"^(sports_centre|stadium|park)$"]["name"]${A(r)};
   nwr["landuse"="cemetery"]${A(r)};
+  nwr["shop"]["name"]${A(r)};
+  nwr["craft"]["name"]${A(r)};
+  nwr["office"]["name"]${A(r)};
+  nwr["amenity"~"^(restaurant|cafe|fast_food|car_repair|internet_cafe|dentist)$"]["name"]${A(r)};
 );
 out center tags qt;`;
 }
@@ -164,7 +168,18 @@ export function placeKeyOf(t) {
   if (a === 'grave_yard' || t.landuse === 'cemetery') return 'cemetery';
   if (t.leisure === 'sports_centre' || t.leisure === 'stadium') return 'youth';
   if (t.leisure === 'park') return 'park';
+  if (a === 'dentist') return 'clinic';
+  // anything else with a name that sells or makes something: a shop, workshop, office or café
+  if ((t.shop || t.craft || t.office || ['restaurant', 'cafe', 'fast_food', 'car_repair', 'internet_cafe'].includes(a)) && (t.name || t['name:ar'])) return 'shop';
   return null;
+}
+
+/** Egyptian phone in local form (01xxxxxxxxx / 0xxxxxxxx) or '' — map data writes +20, spaces and dashes. */
+export function localPhone(raw) {
+  let d = String(raw || '').split(/[;,/]/)[0].replace(/[^0-9+]/g, '');
+  d = d.replace(/^(\+|00)20/, '0');
+  if (!d.startsWith('0') && /^1[0125][0-9]{8}$/.test(d)) d = '0' + d;
+  return /^0[0-9]{8,10}$/.test(d) ? d : '';
 }
 
 export function processOverpass(json, center, r) {
@@ -217,7 +232,8 @@ export function processOverpass(json, center, r) {
       if (seenRef.has(ref)) continue;
       seenRef.add(ref);
       const name = (t['name:ar'] || t.name || t['name:en'] || '').trim().slice(0, 80);
-      out.p.push([key, name, +c.lat.toFixed(6), +c.lon.toFixed(6), ref]);
+      // [type, name, lat, lng, ref, unsure (0/1), phone]
+      out.p.push([key, name, +c.lat.toFixed(6), +c.lon.toFixed(6), ref, 0, localPhone(t.phone || t['contact:phone'] || t['contact:mobile'])]);
     }
   }
   return out;

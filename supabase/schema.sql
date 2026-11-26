@@ -530,7 +530,8 @@ language sql security definer set search_path = village_gate, pg_temp as $$
     (127, 'vet_place', 'place', 'places', '🐄', 'Veterinary unit', 'وحدة بيطرية'),
     (128, 'agri_coop', 'place', 'places', '🌾', 'Agricultural cooperative', 'الجمعية الزراعية'),
     (129, 'park', 'place', 'places', '🌳', 'Garden', 'حديقة'),
-    (130, 'cemetery', 'place', 'places', '🪦', 'Cemetery', 'مقابر')
+    (130, 'cemetery', 'place', 'places', '🪦', 'Cemetery', 'مقابر'),
+    (131, 'shop', 'place', 'places', '🏪', 'Shop or business', 'محل أو نشاط تجاري')
   ) as v(ord, key, kind, sector, icon, en, ar)
   on conflict (group_id, key) do update set sector = excluded.sector
     where categories.sector = 'other' and excluded.sector <> 'other';
@@ -620,8 +621,9 @@ begin
     select id into cat from categories where group_id = p_group and kind = 'place' and key = p ->> 'key';
     continue when cat is null or coalesce(p ->> 'osm_ref', '') !~ '^([nwr][0-9]{1,12}|o[0-9a-f]{8,32})$';
     begin
-      insert into places(group_id, category_id, name, lat, lng, osm_ref)
-      values (p_group, cat, left(btrim(p ->> 'name'), 80), (p ->> 'lat')::double precision, (p ->> 'lng')::double precision, p ->> 'osm_ref')
+      insert into places(group_id, category_id, name, phone, lat, lng, osm_ref)
+      values (p_group, cat, left(btrim(p ->> 'name'), 80), case when p ->> 'phone' ~ '^0[0-9]{8,10}$' then p ->> 'phone' end,
+        (p ->> 'lat')::double precision, (p ->> 'lng')::double precision, p ->> 'osm_ref')
       on conflict (group_id, osm_ref) where osm_ref is not null do nothing;
       get diagnostics c = row_count;
       n := n + c;

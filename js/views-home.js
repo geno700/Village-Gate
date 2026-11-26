@@ -18,10 +18,41 @@ export async function render(main) {
   let k = /^(الحاج|الحاجة|الأستاذ|الأستاذة|د\.?|دكتور|الشيخ|عم)$/.test(words[0]) && words.length > 1 ? 1 : 0;
   if (/^(عبد|أبو|ابو|أم|ام)$/.test(words[k]) && words[k + 1]) k++;
   const hello = words.slice(0, k + 1).join(' ');
+  // big 3D village you can turn and zoom; tapping a landmark shows a small card first
+  let scene = null;
+  const ctlBtn = (icon, label, fn) => h('button', { type: 'button', class: 'scene-btn', 'aria-label': label, title: label, onclick: fn }, icon);
+  const fullBtn = ctlBtn('⛶', t('home.fullMap'), () => setFull(!hero.classList.contains('full')));
+  const pick = h('div', { class: 'scene-pick', hidden: true });
   const hero = h('section', { class: 'hero-wrap' }, stage, h('div', { class: 'hero-shade' }),
     h('div', { class: 'hero-text' }, h('p', { class: 'hero-hello' }, t('home.hello', { name: hello })),
       h('h1', null, g.name), h('p', { class: 'hero-sub' },
-        t('home.counts', { places: fmtNum(places.length), businesses: fmtNum(verified.length) }))));
+        t('home.counts', { places: fmtNum(places.length), businesses: fmtNum(verified.length) }))),
+    h('div', { class: 'scene-ctrls' },
+      ctlBtn('＋', t('home.zoomIn'), () => scene?.zoomBy?.(0.75)),
+      ctlBtn('－', t('home.zoomOut'), () => scene?.zoomBy?.(1.33)),
+      ctlBtn('⟳', t('home.turn'), () => scene?.turn?.(Math.PI / 4)),
+      ctlBtn('🧭', t('home.resetView'), () => scene?.reset?.()),
+      fullBtn),
+    h('p', { class: 'scene-hint', 'aria-hidden': 'true' }, t('home.mapHint')),
+    pick);
+  const onKey = e => { if (e.key === 'Escape') setFull(false); };
+  function setFull(on) {
+    hero.classList.toggle('full', on); document.body.classList.toggle('scene-full', on);
+    fullBtn.textContent = on ? '✕' : '⛶'; fullBtn.setAttribute('aria-label', t(on ? 'home.exitFull' : 'home.fullMap')); fullBtn.title = fullBtn.getAttribute('aria-label');
+    scene?.setFull?.(on);
+    if (on) document.addEventListener('keydown', onKey); else document.removeEventListener('keydown', onKey);
+  }
+  const showPick = p => {
+    clear(pick);
+    if (!p) { pick.hidden = true; return; }
+    const href = p.kind === 'biz' ? `#/business/${p.id}` : `#/map?place=${p.id}`;
+    pick.append(h('span', { class: 'li-icon' }, p.icon || '📍'),
+      h('div', { class: 'li-main' }, h('strong', null, p.label), h('small', null, p.sub || '')),
+      p.phone ? h('a', { class: 'btn small ghost', href: `tel:${p.phone}`, 'aria-label': t('common.call') }, '📞') : null,
+      h('button', { type: 'button', class: 'btn small primary', onclick: () => { setFull(false); go(href); } }, t('home.openPlace')),
+      h('button', { type: 'button', class: 'btn small ghost', 'aria-label': t('common.close'), onclick: () => showPick(null) }, '✕'));
+    pick.hidden = false;
+  };
 
   const blocks = [];
 
@@ -77,9 +108,11 @@ export async function render(main) {
   clear(main).append(hero, h('div', { class: 'page' }, blocks));
 
   const points = [
-    ...places.map(p => ({ id: p.id, lat: p.lat, lng: p.lng, icon: catById(p.category_id)?.icon, label: p.name, kind: 'place', model: catById(p.category_id)?.key })),
-    ...verified.filter(b => b.lat != null).map(b => ({ id: b.id, lat: b.lat, lng: b.lng, icon: catById(b.category_ids[0])?.icon, label: b.name, kind: 'biz' })),
+    ...places.map(p => ({ id: p.id, lat: p.lat, lng: p.lng, icon: catById(p.category_id)?.icon, label: p.name, kind: 'place', model: catById(p.category_id)?.key,
+      sub: [catName(catById(p.category_id)), p.note].filter(Boolean).join(sep()), phone: p.phone })),
+    ...verified.filter(b => b.lat != null).map(b => ({ id: b.id, lat: b.lat, lng: b.lng, icon: catById(b.category_ids[0])?.icon, label: b.name, kind: 'biz',
+      sub: b.category_ids.map(id => catName(catById(id))).filter(Boolean).slice(0, 2).join(sep()), phone: b.phone })),
   ];
-  return await mountScene(stage, { center: center(), map: villageMap, points, mode: 'hero',
-    onPick: p => go(p.kind === 'biz' ? `#/business/${p.id}` : `#/map?place=${p.id}`) });
+  scene = await mountScene(stage, { center: center(), map: villageMap, points, mode: 'hero', interactive: true, onPick: showPick });
+  return () => { setFull(false); scene?.(); };
 }

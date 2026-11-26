@@ -4,7 +4,7 @@
 import { db } from './data.js';
 import { state, go } from './state.js';
 import { t, getLang } from './i18n.js';
-import { h, clear, field, toast, errToast, busy, fmtNum, spinner, sep } from './ui.js';
+import { h, clear, field, toast, errToast, busy, fmtNum, fmtDistance, spinner, sep } from './ui.js';
 import { locationPicker } from './map.js';
 import { mountScene } from './scene3d.js';
 import { searchVillage, nameAt, fetchVillageMap, mapStats, synthHouses } from './osm.js';
@@ -14,9 +14,52 @@ import { personFields } from './views-auth.js';
 const PLACE_INFO = Object.fromEntries(PLACES.map(([key, icon, en, ar]) => [key, { icon, en, ar }]));
 const placeLabel = key => PLACE_INFO[key]?.[getLang()] || key;
 
-/** Landmarks from a village map, ready for db.importPlaces (unnamed ones get their category name). */
-export const landmarksOf = map => (map?.p || []).filter(p => inEgypt(p[2], p[3]))
-  .map(([key, name, lat, lng, osm_ref]) => ({ key, name: name || placeLabel(key), lat, lng, osm_ref }));
+/**
+ * Landmarks, shops and services from a village map, ready for db.importPlaces (unnamed ones get their type name).
+ * Map rows are [type, name, lat, lng, ref, unsure, phone]; d = metres from the village centre.
+ */
+export const landmarksOf = map => {
+  const kx = 111320 * Math.cos((map?.lat || 0) * Math.PI / 180);
+  return (map?.p || []).filter(p => inEgypt(p[2], p[3]) && PLACE_INFO[p[0]])
+    .map(([key, name, lat, lng, osm_ref, unsure, phone]) => ({ key, name: name || placeLabel(key), lat, lng, osm_ref,
+      unsure: !!unsure, phone: phone || '', d: Math.round(Math.hypot((lng - map.lng) * kx, (lat - map.lat) * 110540)) }));
+};
+
+/**
+ * Everything found on the map, each with its own tick box, grouped by type. Places inside the village circle
+ * start ticked; farther ones (other villages, the market town) start unticked. `skip` = refs already in the village.
+ * Returns { el, selected() }.
+ */
+export function placePicker(marks, radius, skip = new Set()) {
+  const list = marks.filter(m => !skip.has(m.osm_ref)).sort((a, b) => a.d - b.d);
+  const near = m => m.d <= radius * 1.15;
+  const sel = new Set(list.filter(near).map(m => m.osm_ref));
+  const count = h('p', { class: 'muted small' });
+  const boxes = [];
+  const update = () => { count.textContent = t('setup.picked', { n: fmtNum(sel.size), all: fmtNum(list.length) }); };
+  const groups = {};
+  for (const m of list) (groups[m.key] ||= []).push(m);
+  const order = PLACES.map(p => p[0]).filter(k => groups[k]);
+  const el = h('div', { class: 'card place-picker' },
+    h('h2', null, t('setup.landmarks')),
+    h('p', { class: 'hint' }, t('setup.pickHelp')),
+    h('div', { class: 'row gap wrap' },
+      h('button', { type: 'button', class: 'btn small', onclick: () => { list.forEach(m => sel.add(m.osm_ref)); boxes.forEach(b => { b.checked = true; }); update(); } }, t('setup.pickAll')),
+      h('button', { type: 'button', class: 'btn small ghost', onclick: () => { sel.clear(); boxes.forEach(b => { b.checked = false; }); update(); } }, t('setup.pickNone')),
+      count),
+    order.map(k => h('fieldset', { class: 'pick-group' },
+      h('legend', null, PLACE_INFO[k].icon, ' ', placeLabel(k), ` (${fmtNum(groups[k].length)})`),
+      groups[k].map(m => {
+        const box = h('input', { type: 'checkbox', checked: sel.has(m.osm_ref), onchange: e => { e.target.checked ? sel.add(m.osm_ref) : sel.delete(m.osm_ref); update(); } });
+        boxes.push(box);
+        return h('label', { class: 'pick-row' }, box,
+          h('span', { class: 'li-main' }, h('strong', null, m.name),
+            h('small', null, [fmtDistance(m.d / 1000), near(m) ? null : t('setup.outside'), m.phone ? h('bdi', { dir: 'ltr' }, m.phone) : null].filter(Boolean).flatMap((x, i) => i ? [sep(), x] : [x]))),
+          m.unsure ? h('span', { class: 'badge warn', title: t('setup.unsureHelp') }, t('setup.unsure')) : null);
+      }))));
+  update();
+  return { el, selected: () => list.filter(m => sel.has(m.osm_ref)), size: list.length };
+}
 
 /** Appends a "3D preview + stats" block to `parent` (here and in the Mayor's office). Returns { el, destroy, houses }. */
 export async function mapPreview(parent, map, center) {
@@ -34,7 +77,7 @@ export async function mapPreview(parent, map, center) {
 }
 
 export async function setup(main, _p, ctx) {
-  const S = { center: null, radius: 1000, name: '', nameTyped: false, map: null, importPlaces: true };
+  const S = { center: null, radius: 1000, name: '', nameTyped: false, map: null, picker: null };
   let cleanup = null;
   const page = h('section', { class: 'page setup' });
   clear(main).append(page);
@@ -134,14 +177,10 @@ export async function setup(main, _p, ctx) {
       if (!alive) { prev.destroy(); return; }
       cleanup = () => { alive = false; prev.destroy(); };
       const marks = landmarksOf(map);
-      const counts = {};
-      for (const p of marks) counts[p.key] = (counts[p.key] || 0) + 1;
-      const check = h('input', { type: 'checkbox', checked: S.importPlaces, onchange: e => { S.importPlaces = e.target.checked; } });
+      S.picker = marks.length ? placePicker(marks, S.radius) : null;
       body.append(
-        marks.length ? h('div', { class: 'card' }, h('h2', null, t('setup.landmarks')),
-          h('div', { class: 'chips' }, Object.entries(counts).map(([k, n]) => h('span', { class: 'chip' }, PLACE_INFO[k]?.icon, ' ', placeLabel(k), n > 1 ? ` × ${fmtNum(n)}` : ''))),
-          h('label', { class: 'check' }, check, ' ', t('setup.importPlaces', { n: fmtNum(marks.length) })))
-          : h('p', { class: 'note' }, t('setup.noLandmarks')),
+        S.picker ? S.picker.el : h('p', { class: 'note' }, t('setup.noLandmarks')),
+        h('p', { class: 'hint' }, t('setup.addLater')),
         h('div', { class: 'row gap' },
           h('button', { type: 'button', class: 'btn', onclick: step1 }, t('setup.changePlace')),
           h('button', { type: 'button', class: 'btn primary grow', onclick: step3 }, t('setup.looksRight'))));
@@ -177,8 +216,8 @@ export async function setup(main, _p, ctx) {
         if (S.map) {
           try {
             await db.saveVillageMap(id, S.map);
-            const marks = landmarksOf(S.map);
-            if (S.importPlaces && marks.length) {
+            const marks = S.picker ? S.picker.selected() : [];
+            if (marks.length) {
               const n = await db.importPlaces(id, marks);
               if (n) toast(t('admin.placesAdded', { n: fmtNum(n) }));
             }

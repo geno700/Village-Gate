@@ -166,9 +166,9 @@ personal care (barber, women's salon, tailor, shoe repair) ·
 events (catering, tents and chairs, sound, photography, weddings) ·
 professional (lawyer, accountant, real estate, paperwork, translation, insurance) · other.
 
-**21 place types:** mosque, church, hospital or health unit, clinic, pharmacy, school, kindergarten, government office,
+**22 place types:** mosque, church, hospital or health unit, clinic, pharmacy, school, kindergarten, government office,
 post office, ATM or bank, police, fire station, youth centre, market, bakery, fuel station, transport stop,
-veterinary unit, agricultural cooperative, garden, cemetery.
+veterinary unit, agricultural cooperative, garden, cemetery, shop or business.
 
 **"I need…"** shows 8 big tiles first (what the village's verified businesses offer, everyday needs first), a search
 box with a microphone (speech recognition where the phone supports it), then the 16 sectors as big tiles.

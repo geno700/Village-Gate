@@ -7,7 +7,7 @@ import { h, clear, field, selectEl, toast, errToast, busy, empty, toolbar, match
 import { makeMap, pinIcon, locationPicker } from './map.js';
 import { SECTORS, AREA_SIZES } from './shared.js';
 import { fetchVillageMap, mapStats, synthHouses } from './osm.js';
-import { mapPreview, landmarksOf } from './views-setup.js';
+import { mapPreview, landmarksOf, placePicker } from './views-setup.js';
 import { setPendingCount } from './app.js';
 
 const TABS = ['members', 'businesses', 'places', 'categories', 'requests', 'invite', 'village', 'activity', 'export'];
@@ -342,13 +342,25 @@ async function village(el, gid, ctx) {
         status.textContent = t(step === 'busy' ? 'setup.busyRetry' : step === 'build' ? 'setup.building' : 'setup.reading');
       });
       await db.saveVillageMap(gid, m);
-      const marks = landmarksOf(m);
-      const added = marks.length ? await db.importPlaces(gid, marks) : 0;
       clear(mapArea);
       const prev = await mapPreview(mapArea, m, center());
       destroyPreview = prev.destroy;
       showInfo(m, prev.houses);
-      toast(t('admin.mapSaved') + (added ? ' ' + t('admin.placesAdded', { n: fmtNum(added) }) : ''));
+      toast(t('admin.mapSaved'));
+      // places found on the map that the village does not have yet: the mayor ticks which to add
+      const have = new Set((await db.listPlaces(gid)).map(p => p.osm_ref).filter(Boolean));
+      const picker = placePicker(landmarksOf(m), state.group.radius_m || radius, have);
+      if (picker.size) {
+        const addBtn = h('button', { type: 'button', class: 'btn primary block' }, t('admin.addPicked'));
+        addBtn.onclick = async () => {
+          const list = picker.selected();
+          if (!list.length) return toast(t('setup.pickNone'), 'err');
+          busy(addBtn, true);
+          try { const n = await db.importPlaces(gid, list); toast(t('admin.placesAdded', { n: fmtNum(n) })); picker.el.remove(); addBtn.remove(); }
+          catch (e) { errToast(e); busy(addBtn, false); }
+        };
+        mapArea.append(picker.el, addBtn);
+      } else mapArea.append(h('p', { class: 'hint' }, t('admin.noNewPlaces')));
     } catch (err) { clear(mapArea).append(h('p', { class: 'note warn' }, t('setup.failed'))); errToast(err); }
     finally { busy(rebuildBtn, false); }
   };

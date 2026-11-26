@@ -172,6 +172,7 @@ export const PLACES = [
   ['agri_coop', '🌾', 'Agricultural cooperative', 'الجمعية الزراعية'],
   ['park', '🌳', 'Garden', 'حديقة'],
   ['cemetery', '🪦', 'Cemetery', 'مقابر'],
+  ['shop', '🏪', 'Shop or business', 'محل أو نشاط تجاري'],
 ];
 
 /** Seeded when a village is created. [key, kind, sector, icon, name_en, name_ar] (sort = position × 10) */

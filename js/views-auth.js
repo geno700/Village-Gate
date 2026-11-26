@@ -54,8 +54,12 @@ export async function welcome(main) {
   const map = await get('./data/maps/al-safa.json') || await get('./data/demo-village.json');
   const center = map ? { lat: map.lat, lng: map.lng } : WELCOME_CENTER;
   // real landmarks of the sample village when its map has them, otherwise sample ones
-  const real = (map?.p || []).map(([key, name, lat, lng, ref]) => ({ id: ref, lat, lng, kind: 'place', model: key, icon: PLACE_ICON[key], label: name }));
-  const sample = WELCOME_POINTS(center).filter(p => !real.length || p.kind === 'biz');
+  // (only those inside the village; sample ones fill the types it does not have)
+  const kx = 111320 * Math.cos(center.lat * Math.PI / 180);
+  const real = (map?.p || []).filter(([, , lat, lng]) => Math.hypot((lng - map.lng) * kx, (lat - map.lat) * 110540) <= map.r * 1.15)
+    .map(([key, name, lat, lng, ref]) => ({ id: ref, lat, lng, kind: 'place', model: key, icon: PLACE_ICON[key], label: name }));
+  const realKeys = new Set(real.map(p => p.model));
+  const sample = WELCOME_POINTS(center).filter(p => p.kind === 'biz' || !realKeys.has(p.model));
   return await mountScene(stage, { center, map, points: [...real, ...sample], mode: 'full', seed: 7 });
 }
 

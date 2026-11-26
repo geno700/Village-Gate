@@ -57,13 +57,20 @@ demand heatmap, accept requests, and deliver. Group = village. The session langu
   Egypt, so houses are placed along the real streets inside the real built-up area (`synthHouses`, deterministic).
 - Landmarks found on the map become places via `import_places()`; `places.osm_ref` stops duplicates
   (OSM ids n/w/r123, Overture ids o<hex>).
+- Setup and "rebuild map" prefill every place the free data has (landmarks, shops, offices, with phones) in a
+  tick list: inside the village circle ticked, farther ones unticked, low-confidence ones marked "unconfirmed".
+  Map rows are [type, name, lat, lng, ref, unsure, phone]. Anything without its own type is place type `shop`.
+- Google Maps is never used as a data source: its Places API needs a paid key and its terms forbid copying
+  places into another database. Missing places are added by the mayor.
+- Home shows a big interactive 3D village (turn, pinch/buttons to zoom, full screen, tap a marker for a card).
+  One finger up/down still scrolls the page; the mouse wheel zooms only in full screen or with Ctrl.
 - Ready-made maps in data/maps/ are prepared offline (scratch tools, not in the repo) from OpenStreetMap roads plus
   Overture Maps buildings and places (free open data with Google/Microsoft outlines). Setup uses one when the chosen
   centre is within `match_m` of it. Never pay for map data or use services that need a key.
   Ready-made villages are listed first in the setup search (OSM often has no name for them).
 - Landmarks with a model in models3d.js (mosque, church, school, playground, health unit…) show as small original
   3D buildings and clear the houses on their spot.
-- Services: 109 categories in 16 sectors plus 21 place types, all in `js/shared.js` and copied into
+- Services: 109 categories in 16 sectors plus 22 place types, all in `js/shared.js` and copied into
   `seed_categories()`. Each has hidden search words. "I need…" = big popular tiles, search with voice, then sectors.
 
 ## App behaviour

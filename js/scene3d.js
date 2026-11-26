@@ -311,13 +311,20 @@ export async function mountScene(container, opts) {
   const ro = new ResizeObserver(resize); ro.observe(container);
 
   const startAngle = R() * Math.PI * 2;
+  // view controls (interactive mode): turn, tilt, zoom and move; the slow turn pauses while someone handles the map
+  const ctl = { yaw: 0, zoom: 1, tilt: 1, px: 0, pz: 0, touched: -1e9 };
+  const IDLE_MS = 12000;
+  let spin = 0, lastT = 0, ang = startAngle, rad = F;
   const frame = t => {
+    const dt = Math.min(0.1, Math.max(0, t - lastT)); lastT = t;
+    if (performance.now() - ctl.touched > IDLE_MS) spin += dt * 0.045;
     const intro = clamp01(t / 5), ease = 1 - (1 - intro) ** 3;
-    const ang = startAngle + t * 0.045;
-    const rad = hero ? F * (2.17 - 0.26 * intro) : F * (3.26 - 0.98 * ease);
-    const hgt = hero ? F * (1.35 - 0.17 * intro) : F * (2.4 - 1.1 * ease);
-    camera.position.set(FX + Math.cos(ang) * rad, hgt + Math.sin(t * 0.2) * 2, FZ + Math.sin(ang) * rad);
-    camera.lookAt(FX, hero ? 2 : 4, FZ);
+    ang = startAngle + spin + ctl.yaw;
+    rad = (hero ? F * (2.17 - 0.26 * intro) : F * (3.26 - 0.98 * ease)) * ctl.zoom;
+    const hgt = (hero ? F * (1.35 - 0.17 * intro) : F * (2.4 - 1.1 * ease)) * ctl.zoom * ctl.tilt;
+    const tx = FX + ctl.px, tz = FZ + ctl.pz;
+    camera.position.set(tx + Math.cos(ang) * rad, Math.max(3, hgt + Math.sin(t * 0.2) * 2), tz + Math.sin(ang) * rad);
+    camera.lookAt(tx, hero ? 2 : 4, tz);
     uT.value = still ? 1e4 : t;
     if (windows) windows.material.opacity = clamp01((t - 2) / 2) * 0.95;
     for (const m of markers) {
@@ -334,12 +341,14 @@ export async function mountScene(container, opts) {
     renderer.render(scene, camera);
   };
 
-  let raf = 0, t0 = performance.now(), paused = false, visible = true, alive = true;
+  let raf = 0, t0 = performance.now(), paused = false, visible = true, alive = true, once = 0;
   const loop = now => {
     if (!alive) return;
     frame((now - t0) / 1000);
     raf = requestAnimationFrame(loop);
   };
+  // reduced motion: draw one frame after each change instead of animating
+  const redraw = () => { if (!raf && !once && alive) once = requestAnimationFrame(() => { once = 0; frame(Math.max(30, lastT)); }); };
   const setRunning = () => {
     const run = alive && !still && !paused && visible;
     if (run && !raf) { raf = requestAnimationFrame(loop); }
@@ -352,27 +361,84 @@ export async function mountScene(container, opts) {
   io.observe(container);
   opts.onReady?.({ houses: footprints.length, real: map.b?.length || 0 });
 
-  // tap a marker to open it
-  let down = null;
+  /* ---------- touch and mouse ---------- */
+  // one finger sideways turns the village (up/down still scrolls the page), two fingers pinch to zoom and move,
+  // a mouse drags to turn and tilt. A short tap on a marker opens it.
+  const cv = renderer.domElement;
+  const interactive = !!opts.interactive;
+  const ptrs = new Map();
+  let down = null, pinch = null;
+  const limit = rg / U * 0.8;
+  const touch = () => { ctl.touched = performance.now(); redraw(); };
+  const clampCtl = () => {
+    ctl.zoom = Math.min(1.7, Math.max(0.28, ctl.zoom));
+    ctl.tilt = Math.min(1.6, Math.max(0.35, ctl.tilt));
+    const d = Math.hypot(ctl.px, ctl.pz); if (d > limit) { ctl.px *= limit / d; ctl.pz *= limit / d; }
+  };
+  const pan = (dx, dy) => { // screen pixels -> ground units, along the current view
+    const k = rad / (cv.clientHeight || 1) * 1.4, s = Math.sin(ang), c = Math.cos(ang);
+    ctl.px -= dx * k * s + dy * k * c; ctl.pz += dx * k * c - dy * k * s;
+  };
+  const mid = () => { const [a, b] = [...ptrs.values()]; return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, d: Math.hypot(a.x - b.x, a.y - b.y) || 1 }; };
   const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
-  const onDown = e => { down = { x: e.clientX, y: e.clientY }; };
+  const onDown = e => {
+    down = { x: e.clientX, y: e.clientY, moved: false };
+    if (!interactive) return;
+    if (e.pointerType === 'mouse') try { cv.setPointerCapture(e.pointerId); } catch { /* ignore */ }
+    ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (ptrs.size === 2) pinch = mid();
+  };
+  const onMove = e => {
+    if (!interactive || !ptrs.has(e.pointerId)) return;
+    const p = ptrs.get(e.pointerId), dx = e.clientX - p.x, dy = e.clientY - p.y;
+    p.x = e.clientX; p.y = e.clientY;
+    if (down && Math.hypot(e.clientX - down.x, e.clientY - down.y) > 8) down.moved = true;
+    if (ptrs.size >= 2 && pinch) {
+      const m = mid();
+      ctl.zoom *= pinch.d / m.d;
+      pan(m.x - pinch.x, m.y - pinch.y);
+      pinch = m;
+    } else if (ptrs.size === 1) {
+      ctl.yaw += dx * 0.008;
+      if (e.pointerType === 'mouse' || container.dataset.full) ctl.tilt *= 1 - dy * 0.005;
+    }
+    clampCtl(); touch();
+  };
   const onUp = e => {
-    if (!opts.onPick || !down || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 8) return;
-    const r = renderer.domElement.getBoundingClientRect();
+    ptrs.delete(e.pointerId); if (ptrs.size < 2) pinch = null;
+    if (!opts.onPick || !down || down.moved || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 8) return;
+    const r = cv.getBoundingClientRect();
     ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
     ray.setFromCamera(ndc, camera);
-    const hit = ray.intersectObjects(markers.map(m => m.icon), false)[0];
-    if (hit) opts.onPick(hit.object.userData.point);
+    const hit = ray.intersectObjects(markers.filter(m => m.g.visible).map(m => m.icon), false)[0];
+    opts.onPick(hit ? hit.object.userData.point : null);
   };
-  renderer.domElement.addEventListener('pointerdown', onDown);
-  renderer.domElement.addEventListener('pointerup', onUp);
+  const onCancel = e => { ptrs.delete(e.pointerId); if (ptrs.size < 2) pinch = null; down = null; };
+  // the mouse wheel zooms only in full screen (or with Ctrl), so the page still scrolls over the map
+  const onWheel = e => {
+    if (!interactive || !(container.dataset.full || e.ctrlKey)) return;
+    e.preventDefault(); ctl.zoom *= Math.exp(e.deltaY * 0.0012); clampCtl(); touch();
+  };
+  if (interactive) { cv.style.touchAction = 'pan-y'; cv.style.cursor = 'grab'; }
+  cv.addEventListener('pointerdown', onDown);
+  cv.addEventListener('pointermove', onMove);
+  cv.addEventListener('pointerup', onUp);
+  cv.addEventListener('pointercancel', onCancel);
+  cv.addEventListener('pointerleave', onCancel);
+  cv.addEventListener('wheel', onWheel, { passive: false });
 
-  return function destroy() {
-    alive = false; if (raf) cancelAnimationFrame(raf);
+  function destroy() {
+    alive = false; if (raf) cancelAnimationFrame(raf); if (once) cancelAnimationFrame(once);
     ro.disconnect(); io.disconnect();
     document.removeEventListener('visibilitychange', onVis);
     disposables.forEach(d => d.dispose?.());
     renderer.dispose(); renderer.forceContextLoss?.();
-    renderer.domElement.remove();
-  };
+    cv.remove();
+  }
+  // buttons for people who do not pinch: zoom in/out, turn, back to the start view; full screen lets one finger tilt too
+  destroy.zoomBy = f => { ctl.zoom *= f; clampCtl(); touch(); };
+  destroy.turn = a => { ctl.yaw += a; touch(); };
+  destroy.reset = () => { Object.assign(ctl, { yaw: 0, zoom: 1, tilt: 1, px: 0, pz: 0, touched: -1e9 }); redraw(); };
+  destroy.setFull = on => { if (on) container.dataset.full = '1'; else delete container.dataset.full; cv.style.touchAction = on ? 'none' : 'pan-y'; resize(); redraw(); };
+  return destroy;
 }

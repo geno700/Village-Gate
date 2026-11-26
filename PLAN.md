@@ -5,7 +5,7 @@ every service provider. Residents post what they need, like a gas cylinder, a tr
 a plumber. Providers see a demand map, deliver to exactly the houses that asked, and can stop
 driving around with loudspeakers.
 
-- Repo / URL: `Village-Gate` → https://algebratronics.com/Village-Gate/ (GitHub Pages paths are case-sensitive)
+- Repo / URL: `Village-Gate` → https://geno700.github.io/Village-Gate/ (GitHub Pages paths are case-sensitive)
 - Group type: **village** (قرية). Each village is one group with one owner (the mayor).
 - Supabase schema: `village_gate`
 - Languages: Arabic (default, RTL) + English

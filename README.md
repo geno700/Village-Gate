@@ -13,7 +13,7 @@ village built from its real map (roads, canals, fields and landmarks from OpenSt
 - Plain HTML, CSS and JavaScript modules. No framework, no build step, no npm.
 - Modern Standard Arabic (default, right-to-left) and English. Light and dark follow the phone.
 - Installable as an app (PWA). Works one-handed on a phone and on desktop too.
-- Live at: https://algebratronics.com/Village-Gate/
+- Live at: https://geno700.github.io/Village-Gate/
 
 ## Try it (demo mode)
 
@@ -42,7 +42,7 @@ The app uses the shared Supabase project "github apps" (`https://gzvknfvqyqfynai
    Everything lives in its own schema, `village_gate`, never in `public`.
 2. **Expose the schema.** Go to Project Settings → **Data API** → **Exposed schemas** and add `village_gate`, then save.
 3. **Add the redirect URLs.** Go to Authentication → **URL Configuration** → Redirect URLs and add:
-   - `https://algebratronics.com/Village-Gate/`
+   - `https://geno700.github.io/Village-Gate/`
    - `http://localhost:8000/` (for local testing)
 
    Sign-up confirmation and password-reset emails come back to `location.origin + location.pathname`.
@@ -85,7 +85,7 @@ Only the village search text and the chosen area are sent to OpenStreetMap's pub
 
 1. Push this folder to the `Village-Gate` repository. Keep `.nojekyll`.
 2. Go to Settings → Pages → Build and deployment → **Deploy from a branch** → `main` / root.
-3. With the custom domain `algebratronics.com` already on your user site, the app appears at `/Village-Gate/`.
+3. The app appears at `https://geno700.github.io/Village-Gate/`.
    Every path in the app is relative (`./`), so it works under that sub-path.
 4. When you release changes, bump `VERSION` in `sw.js` so installed apps show "New version, reload".
 

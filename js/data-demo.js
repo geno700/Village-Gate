@@ -9,8 +9,8 @@ import { synthHouses } from './osm.js';
 const getJSON = u => fetch(u).then(r => r.ok ? r.json() : null).catch(() => null);
 const DEMO_MAP = await getJSON('./data/maps/al-safa.json') || await getJSON('./data/demo-village.json');
 
-const KEY = 'vg-demo-db-v3';
-const MAPS_KEY = 'vg-demo-maps-v3';
+const KEY = 'vg-demo-db-v4';
+const MAPS_KEY = 'vg-demo-maps-v4';
 const DAY = 86400000;
 const uuid = () => crypto.randomUUID();
 const now = () => new Date().toISOString();
@@ -232,7 +232,7 @@ export const api = {
       let added = 0;
       for (const p of (list || []).slice(0, 300)) {
         const c = db.categories.find(x => x.group_id === g && x.kind === 'place' && x.key === p.key);
-        if (!c || !/^([nwr][0-9]{1,12}|o[0-9a-f]{8,32})$/.test(p.osm_ref || '') || db.places.some(x => x.group_id === g && x.osm_ref === p.osm_ref)) continue;
+        if (!c || !/^([nwr][0-9]{1,12}|o[0-9a-f]{8,32}|q[0-9]{1,12})$/.test(p.osm_ref || '') || db.places.some(x => x.group_id === g && x.osm_ref === p.osm_ref)) continue;
         const name = (p.name || '').trim().slice(0, 80);
         if (name.length < 2 || !inEgypt(p.lat, p.lng)) continue;
         db.places.push({ id: uuid(), group_id: g, category_id: c.id, name, phone: /^0[0-9]{8,10}$/.test(p.phone || '') ? p.phone : null, lat: p.lat, lng: p.lng, note: '', osm_ref: p.osm_ref, created_at: now(), created_by: me() });

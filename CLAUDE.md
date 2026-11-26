@@ -56,13 +56,17 @@ demand heatmap, accept requests, and deliver. Group = village. The session langu
   is stored once in `village_maps`. Residents never call those services. OSM rarely has village buildings in
   Egypt, so houses are placed along the real streets inside the real built-up area (`synthHouses`, deterministic).
 - Landmarks found on the map become places via `import_places()`; `places.osm_ref` stops duplicates
-  (OSM ids n/w/r123, Overture ids o<hex>).
+  (OSM ids n/w/r123, Overture ids o<hex>, Wikidata ids q123).
 - Setup and "rebuild map" prefill every place the free data has (landmarks, shops, offices, with phones) in a
   tick list: inside the village circle ticked, farther ones unticked, low-confidence ones marked "unconfirmed".
   Map rows are [type, name, lat, lng, ref, unsure, phone]. Anything without its own type is place type `shop`.
 - Adding places: `#/place/new` (js/views-places.js) picks the type from big icons, then a pin. The mayor's place goes
   straight in (`savePlace`); a resident's is a suggestion (`suggest_place`, status 'pending', max 10 waiting each),
   seen only by admins and its author until the mayor approves or turns it down (`review_place`, turning down deletes).
+- Free place sources, all legal and keyless, asked from the browser when a village is set up (and by "Find places
+  on free maps" in the Mayor's office): OpenStreetMap (Overpass), Wikidata (SPARQL `wikibase:around`, CC0; it lists
+  many Egyptian mosques) and, for ready-made villages, Overture. `findPlaces()` caps slow sources (20–30 s).
+  Foursquare OS Places is free (Apache 2.0) but gated behind a Hugging Face account, so it is only for offline prep.
 - Google Maps is never used as a data source: its Places API needs a paid key and its terms forbid copying
   places into another database. Missing places are added by the mayor.
 - Home shows a big interactive 3D village (turn, pinch/buttons to zoom, full screen, tap a marker for a card).

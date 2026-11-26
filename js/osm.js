@@ -133,11 +133,83 @@ async function bundledMap(lat, lng) {
 /** Download and build the village map. Throws 'map_busy' when every map server refuses. */
 export async function fetchVillageMap({ lat, lng }, r = RADIUS.default, onStep) {
   r = Math.max(RADIUS.min, Math.min(RADIUS.max, Math.round(r)));
+  const wiki = wikidataPlaces({ lat, lng }, r * 1.6).catch(() => []); // asked at the same time; never blocks the map
   const ready = await bundledMap(lat, lng);
-  if (ready) { onStep?.('build'); return { ...ready, at: new Date().toISOString() }; }
-  const json = await overpass(overpassQuery(lat, lng, r), onStep);
-  onStep?.('build');
-  return processOverpass(json, { lat, lng }, r);
+  let map;
+  if (ready) { onStep?.('build'); map = { ...ready, at: new Date().toISOString() }; }
+  else {
+    const json = await overpass(overpassQuery(lat, lng, r), onStep);
+    onStep?.('build');
+    map = processOverpass(json, { lat, lng }, r);
+  }
+  map.p = mergePlaces(map.p || [], await wiki);
+  return map;
+}
+
+/**
+ * Places around a point from every free source, without rebuilding the 3D map: the ready-made map's places,
+ * OpenStreetMap points of interest and Wikidata. Rows are [type, name, lat, lng, ref, unsure, phone].
+ */
+export async function findPlaces({ lat, lng }, r = RADIUS.default) {
+  const [ready, osm, wiki] = await Promise.all([
+    bundledMap(lat, lng),
+    within(20000, overpassPlaces(lat, lng, r * 1.6)), // OSM servers are often busy: use what arrives in time
+    within(30000, wikidataPlaces({ lat, lng }, r * 1.6)),
+  ]);
+  return mergePlaces(mergePlaces(ready?.p || [], osm), wiki);
+}
+
+/** The promise's result, or [] if it fails or takes longer than ms. */
+const within = (ms, pr) => Promise.race([pr.catch(() => []), new Promise(res => setTimeout(() => res([]), ms))]);
+
+async function overpassPlaces(lat, lng, r) {
+  const q = overpassQuery(lat, lng, Math.round(r)).split('out geom qt;')[1]; // only the points-of-interest half
+  const json = await overpass('[out:json][timeout:60];' + q);
+  return processOverpass(json, { lat, lng }, Math.round(r)).p;
+}
+
+/** Same type within 40 m (or the same reference) counts as the same place: keep the first. */
+function mergePlaces(base, extra) {
+  const out = [...base];
+  const kx = 111320 * Math.cos((base[0]?.[2] ?? extra[0]?.[2] ?? 30) * Math.PI / 180);
+  for (const p of extra) {
+    if (out.some(q => q[4] === p[4] || (q[0] === p[0] && Math.hypot((q[3] - p[3]) * kx, (q[2] - p[2]) * 110540) < 40))) continue;
+    out.push(p);
+  }
+  return out;
+}
+
+/* ------------------------------------------------------------------ Wikidata (CC0, free, no key) */
+// Wikidata lists many Egyptian mosques, schools and public buildings with coordinates. "instance of" → place type.
+const WD_TYPES = {
+  Q32815: 'mosque', Q16970: 'church', Q3914: 'school', Q9842: 'school', Q159334: 'school', Q149566: 'school', Q875538: 'school',
+  Q126807: 'kindergarten', Q16917: 'health', Q4260475: 'health', Q1774898: 'clinic', Q13107184: 'pharmacy_place', Q35054: 'post',
+  Q22687: 'bank', Q861951: 'police', Q1195942: 'fire', Q543654: 'government', Q327333: 'government', Q330284: 'market', Q37654: 'market',
+  Q274393: 'bakery_place', Q205495: 'fuel_station', Q39614: 'cemetery', Q22698: 'park', Q483110: 'youth', Q1076486: 'youth',
+};
+export async function wikidataPlaces({ lat, lng }, radiusM) {
+  const km = Math.min(5, Math.max(0.3, radiusM / 1000)).toFixed(2);
+  const q = `SELECT ?item ?ar ?en ?coord (GROUP_CONCAT(STRAFTER(STR(?type), "entity/"); separator=" ") AS ?types) WHERE {
+  SERVICE wikibase:around { ?item wdt:P625 ?coord . bd:serviceParam wikibase:center "Point(${lng} ${lat})"^^geo:wktLiteral .
+    bd:serviceParam wikibase:radius "${km}" . }
+  ?item wdt:P31 ?type .
+  OPTIONAL { ?item rdfs:label ?ar FILTER(LANG(?ar) = "ar") } OPTIONAL { ?item rdfs:label ?en FILTER(LANG(?en) = "en") }
+} GROUP BY ?item ?ar ?en ?coord LIMIT 400`;
+  const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 30000);
+  try {
+    const res = await fetch('https://query.wikidata.org/sparql?format=json&query=' + encodeURIComponent(q), { headers: { Accept: 'application/sparql-results+json' }, signal: ctl.signal });
+    if (!res.ok) return [];
+    const rows = (await res.json()).results.bindings;
+    const out = [];
+    for (const b of rows) {
+      const key = b.types.value.split(' ').map(t => WD_TYPES[t]).find(Boolean);
+      const m = /Point\(([-0-9.]+) ([-0-9.]+)\)/.exec(b.coord.value);
+      const name = (b.ar?.value || b.en?.value || '').trim().slice(0, 80);
+      if (!key || !m || name.length < 2) continue;
+      out.push([key, name, +(+m[2]).toFixed(6), +(+m[1]).toFixed(6), 'q' + b.item.value.split('/Q').pop(), 0, '']);
+    }
+    return out;
+  } finally { clearTimeout(timer); }
 }
 
 /* ------------------------------------------------------------------ processing (pure, also used by tools) */

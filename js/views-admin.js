@@ -6,7 +6,7 @@ import { h, clear, field, selectEl, toast, errToast, busy, empty, toolbar, match
   timeAgo, telLink, normPhone, isPhone, downloadCSV, download, pickFile, stamp, sep } from './ui.js';
 import { makeMap, pinIcon, locationPicker } from './map.js';
 import { SECTORS, AREA_SIZES } from './shared.js';
-import { fetchVillageMap, mapStats, synthHouses } from './osm.js';
+import { fetchVillageMap, findPlaces, mapStats, synthHouses } from './osm.js';
 import { mapPreview, landmarksOf, placePicker } from './views-setup.js';
 import { setPendingCount } from './app.js';
 
@@ -161,6 +161,8 @@ async function places(el, gid) {
   const [rows, suggested, mem] = await Promise.all([db.listPlaces(gid), db.listPlaceSuggestions(gid), db.listMembers(gid)]);
   const placeCats = state.categories.filter(c => c.kind === 'place');
   const sugBox = h('div', { class: 'stack' });
+  const findBtn = h('button', { type: 'button', class: 'btn block' }, '🔎 ', t('admin.findPlaces'));
+  const findBox = h('div', { class: 'stack' });
   let st = { q: '', cat: 'all' };
   const list = h('div', { class: 'list' });
   const bar = toolbar({ placeholder: t('common.search'), onChange: s => { st = s; paint(); }, selects: [
@@ -168,7 +170,30 @@ async function places(el, gid) {
   el.append(h('div', { class: 'section-head' }, h('p', { class: 'muted' }, t('admin.placesHelp')),
     h('button', { class: 'btn ghost small', onclick: () => downloadCSV(`places-${stamp()}.csv`, rows, [{ label: t('csv.name'), key: 'name' },
       { label: t('csv.category'), get: p => catName(catById(p.category_id)) }, { label: t('csv.phone'), key: 'phone' }, { label: t('csv.note'), key: 'note' }, { label: 'lat', key: 'lat' }, { label: 'lng', key: 'lng' }]) }, '⬇ CSV')),
-  h('a', { class: 'btn primary block', href: '#/place/new' }, '＋ ', t('admin.addPlace')), sugBox, bar, list);
+  h('a', { class: 'btn primary block', href: '#/place/new' }, '＋ ', t('admin.addPlace')), findBtn, findBox, sugBox, bar, list);
+  // look up the free open maps (ready-made map, OpenStreetMap, Wikidata) and tick which places to add
+  findBtn.onclick = async () => {
+    busy(findBtn, true); clear(findBox).append(h('p', { class: 'build-status' }, t('admin.finding')));
+    try {
+      const g = state.group, r = g.radius_m || 1000;
+      const found = await findPlaces({ lat: g.center_lat, lng: g.center_lng }, r);
+      const have = new Set([...rows, ...suggested].map(p => p.osm_ref).filter(Boolean));
+      const picker = placePicker(landmarksOf({ lat: g.center_lat, lng: g.center_lng, p: found }), r, have);
+      clear(findBox);
+      if (!picker.size) { findBox.append(h('p', { class: 'note' }, t('admin.noNewPlaces'))); return; }
+      const addBtn = h('button', { type: 'button', class: 'btn primary block' }, t('admin.addPicked'));
+      addBtn.onclick = async () => {
+        const list = picker.selected(); if (!list.length) return toast(t('setup.pickNone'), 'err');
+        busy(addBtn, true);
+        try {
+          const n = await db.importPlaces(gid, list);
+          toast(t('admin.placesAdded', { n: fmtNum(n) }));
+          rows.splice(0, rows.length, ...await db.listPlaces(gid)); clear(findBox); paint();
+        } catch (e) { errToast(e); busy(addBtn, false); }
+      };
+      findBox.append(picker.el, addBtn);
+    } catch (e) { clear(findBox); errToast(e); } finally { busy(findBtn, false); }
+  };
   // places suggested by residents: approve (it joins the guide) or turn down (it is removed)
   function paintSuggestions() {
     clear(sugBox);

@@ -101,8 +101,11 @@ create table if not exists village_gate.places (
 );
 create index if not exists places_group on village_gate.places(group_id);
 -- landmarks imported from OpenStreetMap remember their id (n123, w456, r789) so they are never added twice
-alter table village_gate.places add column if not exists osm_ref text check (osm_ref ~ '^([nwr][0-9]{1,12}|o[0-9a-f]{8,32})$');
+alter table village_gate.places add column if not exists osm_ref text check (osm_ref ~ '^([nwr][0-9]{1,12}|o[0-9a-f]{8,32}|q[0-9]{1,12})$');
 create unique index if not exists places_osm_ref on village_gate.places(group_id, osm_ref) where osm_ref is not null;
+-- references: OpenStreetMap (n/w/r123), Overture (o<hex>), Wikidata (q123)
+alter table village_gate.places drop constraint if exists places_osm_ref_check;
+alter table village_gate.places add constraint places_osm_ref_check check (osm_ref ~ '^([nwr][0-9]{1,12}|o[0-9a-f]{8,32}|q[0-9]{1,12})$');
 -- residents suggest places; they stay 'pending' (seen only by admins and the person who suggested them) until approved
 alter table village_gate.places add column if not exists status text not null default 'approved' check (status in ('pending', 'approved'));
 create index if not exists places_pending on village_gate.places(group_id) where status = 'pending';
@@ -623,7 +626,7 @@ begin
   perform set_config('village_gate.skip_log_insert', 'on', true);
   for p in select * from jsonb_array_elements(p_places) loop
     select id into cat from categories where group_id = p_group and kind = 'place' and key = p ->> 'key';
-    continue when cat is null or coalesce(p ->> 'osm_ref', '') !~ '^([nwr][0-9]{1,12}|o[0-9a-f]{8,32})$';
+    continue when cat is null or coalesce(p ->> 'osm_ref', '') !~ '^([nwr][0-9]{1,12}|o[0-9a-f]{8,32}|q[0-9]{1,12})$';
     begin
       insert into places(group_id, category_id, name, phone, lat, lng, osm_ref)
       values (p_group, cat, left(btrim(p ->> 'name'), 80), case when p ->> 'phone' ~ '^0[0-9]{8,10}$' then p ->> 'phone' end,

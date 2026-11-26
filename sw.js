@@ -2,13 +2,13 @@
 // cache-first for pinned CDN libraries and map tiles, and NEVER caches Supabase or the map
 // search/data services (Nominatim, Overpass): those requests pass straight through.
 // Bump VERSION on every release so users see "New version, reload".
-const VERSION = 'vg-v1.5.0';
+const VERSION = 'vg-v1.6.0';
 const SHELL = [
   './', './index.html', './config.js', './manifest.webmanifest', './css/style.css',
   './js/app.js', './js/state.js', './js/shared.js', './js/i18n.js', './js/ui.js', './js/map.js', './js/scene3d.js', './js/osm.js', './js/models3d.js',
   './js/data.js', './js/data-demo.js', './js/data-supabase.js',
   './js/views-auth.js', './js/views-home.js', './js/views-map.js', './js/views-requests.js', './js/views-business.js',
-  './js/views-admin.js', './js/views-owner.js', './js/views-settings.js', './js/views-setup.js', './js/views-places.js',
+  './js/views-admin.js', './js/views-owner.js', './js/views-settings.js', './js/views-setup.js', './js/views-places.js', './js/overture.js',
   './data/demo-village.json', './data/maps/index.json', './data/maps/al-safa.json',
   './icons/icon-192.png', './icons/icon-512.png', './icons/maskable-512.png',
 ];

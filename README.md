@@ -126,4 +126,9 @@ Home locations are visible only to the person themselves and the village admins.
 MIT, see [LICENSE](LICENSE).
 
 Map data © [OpenStreetMap contributors](https://www.openstreetmap.org/copyright) (ODbL) and
-[Overture Maps Foundation](https://overturemaps.org) (buildings: ODbL; places: CDLA Permissive 2.0).
+[Overture Maps Foundation](https://overturemaps.org) (buildings: ODbL; places: [CDLA Permissive 2.0](https://cdla.dev/permissive-2-0/),
+read live from Overture's public tiles). Place names and locations also come from [Wikidata](https://www.wikidata.org) (CC0).
+
+When a village is set up, the browser asks these free sources for places around it (no key, no account):
+OpenStreetMap through Overpass, Overture's place tiles (`js/overture.js`, a small built-in reader) and Wikidata.
+The mayor ticks what to keep. Google Maps is not used: its terms do not allow copying its places into another app.

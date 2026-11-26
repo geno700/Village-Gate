@@ -16,7 +16,7 @@ demand heatmap, accept requests, and deliver. Group = village. The session langu
   supabase/schema.sql, README.md, LICENSE (MIT). Extra helpers: js/state.js (shared state, go(), query()),
   js/shared.js (constants shared by both backends, keep in sync with schema.sql), js/map.js (Leaflet),
   js/scene3d.js (three.js village), js/osm.js (OpenStreetMap search, map download and house placement),
-  js/views-setup.js (new-village wizard), js/views-places.js (add or suggest a place), js/models3d.js (landmark 3D models), data/demo-village.json (bundled
+  js/views-setup.js (new-village wizard), js/views-places.js (add or suggest a place), js/overture.js (Overture place tiles), js/models3d.js (landmark 3D models), data/demo-village.json (bundled
   real map for the demo), data/maps/ (ready-made village maps + index.json).
   Icons in icons/. When adding a file, add it to SHELL in sw.js.
 - Supabase project "github apps" (https://gzvknfvqyqfynainxgur.supabase.co). config.js holds only
@@ -65,7 +65,8 @@ demand heatmap, accept requests, and deliver. Group = village. The session langu
   seen only by admins and its author until the mayor approves or turns it down (`review_place`, turning down deletes).
 - Free place sources, all legal and keyless, asked from the browser when a village is set up (and by "Find places
   on free maps" in the Mayor's office): OpenStreetMap (Overpass), Wikidata (SPARQL `wikibase:around`, CC0; it lists
-  many Egyptian mosques) and, for ready-made villages, Overture. `findPlaces()` caps slow sources (20–30 s).
+  many Egyptian mosques) and Overture places read from its public PMTiles (js/overture.js: own tiny PMTiles + vector
+  tile reader, no library; newest release found by listing the bucket). `findPlaces()` caps slow sources (20–30 s).
   Foursquare OS Places is free (Apache 2.0) but gated behind a Hugging Face account, so it is only for offline prep.
 - Google Maps is never used as a data source: its Places API needs a paid key and its terms forbid copying
   places into another database. Missing places are added by the mayor.

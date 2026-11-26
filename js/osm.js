@@ -11,6 +11,7 @@
 //   wa: [[x0, y0, ...]]                      water areas
 //   l:  [[type, x0, y0, ...]]                land use: r residential, f farmland, o orchard, g green, c cemetery, i industrial
 //   p:  [[categoryKey, name, lat, lng, osmRef]] landmarks that match a place category }
+import { overturePlaces } from './overture.js';
 import { RADIUS } from './shared.js';
 
 const NOMINATIM = 'https://nominatim.openstreetmap.org';
@@ -133,7 +134,9 @@ async function bundledMap(lat, lng) {
 /** Download and build the village map. Throws 'map_busy' when every map server refuses. */
 export async function fetchVillageMap({ lat, lng }, r = RADIUS.default, onStep) {
   r = Math.max(RADIUS.min, Math.min(RADIUS.max, Math.round(r)));
-  const wiki = wikidataPlaces({ lat, lng }, r * 1.6).catch(() => []); // asked at the same time; never blocks the map
+  // other free sources are asked at the same time; they never block or break the map
+  const wiki = within(30000, wikidataPlaces({ lat, lng }, r * 1.6));
+  const ovt = within(30000, overturePlaces({ lat, lng }, r * 1.6, localPhone));
   const ready = await bundledMap(lat, lng);
   let map;
   if (ready) { onStep?.('build'); map = { ...ready, at: new Date().toISOString() }; }
@@ -142,7 +145,7 @@ export async function fetchVillageMap({ lat, lng }, r = RADIUS.default, onStep) 
     onStep?.('build');
     map = processOverpass(json, { lat, lng }, r);
   }
-  map.p = mergePlaces(map.p || [], await wiki);
+  map.p = mergePlaces(mergePlaces(map.p || [], await ovt), await wiki);
   return map;
 }
 
@@ -151,12 +154,13 @@ export async function fetchVillageMap({ lat, lng }, r = RADIUS.default, onStep) 
  * OpenStreetMap points of interest and Wikidata. Rows are [type, name, lat, lng, ref, unsure, phone].
  */
 export async function findPlaces({ lat, lng }, r = RADIUS.default) {
-  const [ready, osm, wiki] = await Promise.all([
+  const [ready, osm, ovt, wiki] = await Promise.all([
     bundledMap(lat, lng),
     within(20000, overpassPlaces(lat, lng, r * 1.6)), // OSM servers are often busy: use what arrives in time
+    within(30000, overturePlaces({ lat, lng }, r * 1.6, localPhone)),
     within(30000, wikidataPlaces({ lat, lng }, r * 1.6)),
   ]);
-  return mergePlaces(mergePlaces(ready?.p || [], osm), wiki);
+  return [ready?.p || [], osm, ovt, wiki].reduce(mergePlaces);
 }
 
 /** The promise's result, or [] if it fails or takes longer than ms. */

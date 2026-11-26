@@ -5,7 +5,7 @@ import { t, setLang, getLang } from './i18n.js';
 import { h, clear, field, toast, errToast, busy, confirmDialog, download, pickFile, stamp, statusChip, joinList, sep } from './ui.js';
 import { personFields } from './views-auth.js';
 
-const VERSION = '1.5.0';
+const VERSION = '1.6.0';
 
 export async function render(main, _p, ctx) {
   const approved = state.membership?.status === 'approved';

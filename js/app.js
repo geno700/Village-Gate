@@ -90,7 +90,7 @@ function renderChrome(tab) {
     h('a', { href: '#/', class: 'brand', 'aria-label': t('app.name') }, h('img', { src: './icons/icon-192.png', alt: '', width: 30, height: 30 }),
       h('span', { class: 'brand-name' }, state.group && approved ? '' : t('app.name'))),
     state.user && state.groups.length ? groupSwitcher() : h('span', { class: 'grow' }),
-    isDemo ? h('button', { class: 'demo-badge', type: 'button', title: t('demo.switchUser'), onclick: demoSwitcher }, t('demo.badge')) : null,
+    isDemo ? h('button', { class: 'demo-badge', type: 'button', title: t('demo.switchUser'), onclick: demoSwitcher }, t('demo.badge')) : '',
   );
   document.body.classList.toggle('has-nav', !!(state.user && approved));
   if (!state.user || !approved) return;

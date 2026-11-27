@@ -3,7 +3,7 @@ import { db } from './data.js';
 import { state, isAdmin, isOwner, catById, center, go } from './state.js';
 import { t, catName, sectorName, sectorIcon, getLang } from './i18n.js';
 import { h, clear, field, selectEl, toast, errToast, busy, empty, toolbar, matches, statusChip, chip, confirmDialog, modal, fmtDate, fmtNum,
-  timeAgo, telLink, normPhone, isPhone, downloadCSV, download, pickFile, stamp, sep } from './ui.js';
+  timeAgo, telLink, normPhone, isPhone, downloadCSV, download, pickFile, stamp, sep, joinList } from './ui.js';
 import { makeMap, pinIcon, locationPicker } from './map.js';
 import { SECTORS, AREA_SIZES } from './shared.js';
 import { fetchVillageMap, findPlaces, mapStats, synthHouses } from './osm.js';
@@ -28,6 +28,8 @@ export async function render(main, { tab = 'members' }, ctx) {
   return views[tab === 'export' ? 'exportTab' : tab](body, gid, ctx);
 }
 
+// the places every village has: listed in the "help map" message while the village guide has none of them
+const ASK_TYPES = ['mosque', 'school', 'health', 'pharmacy_place', 'bakery_place', 'market', 'kindergarten', 'youth', 'post', 'government', 'agri_coop', 'transport_stop'];
 const memberName = (list, uid) => list.find(m => m.user_id === uid)?.display_name || '—';
 async function smallMap(el, ll, emoji, cls) {
   const { L, map } = await makeMap(el, { center: ll, zoom: 17 });
@@ -162,6 +164,23 @@ async function places(el, gid) {
   const placeCats = state.categories.filter(c => c.kind === 'place');
   const sugBox = h('div', { class: 'stack' });
   const findBtn = h('button', { type: 'button', class: 'btn block' }, '🔎 ', t('admin.findPlaces'));
+  // ask the whole village to help: one WhatsApp message with a link straight to "add a place"
+  function askCard() {
+    const g = state.group, base = location.origin + location.pathname;
+    const missing = ASK_TYPES.map(k => placeCats.find(c => c.key === k)).filter(c => c && !rows.some(p => p.category_id === c.id));
+    const msg = () => t('admin.mapAskMsg', { name: g.name, link: base + '#/place/new', code: g.join_code, join: `${base}#/join/${g.join_code}` })
+      + (missing.length ? '\n\n' + t('admin.mapAskMissing', { list: joinList(missing.map(c => `${c.icon} ${catName(c)}`)) }) : '');
+    return h('div', { class: 'card ask-card' },
+      h('h2', null, '🗺️ ', t('admin.mapAskTitle')),
+      h('p', { class: 'muted' }, t('admin.mapAskHelp')),
+      missing.length ? h('p', { class: 'small' }, t('admin.mapAskMissing', { list: joinList(missing.map(c => `${c.icon} ${catName(c)}`)) })) : null,
+      h('div', { class: 'row gap wrap' },
+        h('a', { class: 'btn primary', href: 'https://wa.me/?text=' + encodeURIComponent(msg()), target: '_blank', rel: 'noopener' }, '💬 ', t('admin.mapAskWa')),
+        navigator.share ? h('button', { type: 'button', class: 'btn', onclick: () => navigator.share({ title: g.name, text: msg() }).catch(() => {}) }, '📤 ', t('admin.share')) : null,
+        h('button', { type: 'button', class: 'btn ghost', onclick: async () => {
+          try { await navigator.clipboard.writeText(msg()); toast(t('common.copied')); } catch { errToast(new Error('copy_failed')); }
+        } }, '📋 ', t('admin.copyMsg'))));
+  }
   const findBox = h('div', { class: 'stack' });
   let st = { q: '', cat: 'all' };
   const list = h('div', { class: 'list' });
@@ -170,7 +189,7 @@ async function places(el, gid) {
   el.append(h('div', { class: 'section-head' }, h('p', { class: 'muted' }, t('admin.placesHelp')),
     h('button', { class: 'btn ghost small', onclick: () => downloadCSV(`places-${stamp()}.csv`, rows, [{ label: t('csv.name'), key: 'name' },
       { label: t('csv.category'), get: p => catName(catById(p.category_id)) }, { label: t('csv.phone'), key: 'phone' }, { label: t('csv.note'), key: 'note' }, { label: 'lat', key: 'lat' }, { label: 'lng', key: 'lng' }]) }, '⬇ CSV')),
-  h('a', { class: 'btn primary block', href: '#/place/new' }, '＋ ', t('admin.addPlace')), findBtn, findBox, sugBox, bar, list);
+  h('a', { class: 'btn primary block', href: '#/place/new' }, '＋ ', t('admin.addPlace')), askCard(), findBtn, findBox, sugBox, bar, list);
   // look up the free open maps (ready-made map, OpenStreetMap, Wikidata) and tick which places to add
   findBtn.onclick = async () => {
     busy(findBtn, true); clear(findBox).append(h('p', { class: 'build-status' }, t('admin.finding')));

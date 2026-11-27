@@ -142,8 +142,12 @@ export async function route(forceChrome) {
   const signedIn = !!state.user;
   const approved = state.membership?.status === 'approved';
   // guards
-  if (!signedIn && r.need !== 'none') return go('#/welcome');
-  if (signedIn && ['welcome', 'login', 'signup'].includes(r.path)) return go(pendingJoin() ? '#/join/' + pendingJoin() : '#/');
+  // a shared link (e.g. "add a place") is remembered across sign-in, then opened
+  if (!signedIn && r.need !== 'none') { if (r.path !== '') sessionStorage.setItem('vg-next', location.hash); return go('#/welcome'); }
+  if (signedIn && ['welcome', 'login', 'signup'].includes(r.path)) {
+    const next = sessionStorage.getItem('vg-next'); sessionStorage.removeItem('vg-next');
+    return go(pendingJoin() ? '#/join/' + pendingJoin() : next || '#/');
+  }
   if (r.need === 'member' && !approved) return go(state.groups.length ? '#/pending' : '#/start');
   if (r.need === 'platform' && !state.platformAdmin) return go('#/');
   if (r.path === 'pending' && approved) return go('#/');
